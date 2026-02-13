@@ -1,12 +1,8 @@
 import Link from "next/link";
 
-import { currentWeekStart } from "@/lib/date";
-
 import { Nav } from "@/components/layout/nav";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const weekStart = currentWeekStart();
-
   return (
     <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
@@ -15,9 +11,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <header className="sticky top-0 z-40 border-b border-[var(--color-border)]/80 bg-[var(--color-bg)]/93 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-5 py-4 lg:px-8">
+        <div className="mx-auto flex w-full max-w-7xl items-center gap-4 px-5 py-4 lg:px-8">
           <div className="flex items-center gap-5">
-            <Link href={`/week/${weekStart}`} className="group flex items-center gap-3">
+            <Link href="/weeks" className="group flex items-center gap-3">
               <span className="grid h-9 w-9 place-items-center rounded-lg bg-[var(--color-accent)] text-sm font-bold text-[var(--color-accent-foreground)]">
                 PE
               </span>
@@ -30,13 +26,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
             <Nav />
           </div>
-
-          <Link
-            href={`/week/${weekStart}`}
-            className="rounded-xl bg-[var(--color-panel)] px-3 py-2 text-sm font-medium text-[var(--color-text)] ring-1 ring-[var(--color-border)] transition hover:bg-[var(--color-panel-strong)]"
-          >
-            This Week
-          </Link>
         </div>
       </header>
 
