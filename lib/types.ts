@@ -65,7 +65,9 @@ export interface WeekSummary {
   weekStartDate: IsoDateString;
   weekEndDate: IsoDateString;
   totalHours: number;
-  exceededMaxHours: boolean;
+  requiredHours: number;
+  hoursDelta: number;
+  hoursStatus: "under" | "match" | "over";
   updatedAt: string;
 }
 

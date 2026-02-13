@@ -296,15 +296,8 @@ function totalWeekHours(week: WeekDocument): number {
   );
 }
 
-function totalHoursByDay(week: WeekDocument): number[] {
-  return Array.from({ length: WEEKDAY_COUNT }, (_, dayIndex) =>
-    week.rows.reduce((sum, row) => sum + (row.hours[dayIndex] ?? 0), 0),
-  );
-}
-
-function exceedsDailyMaxHours(week: WeekDocument, config: UserConfig): boolean {
-  const totalsByDay = totalHoursByDay(week);
-  return totalsByDay.some((hours, dayIndex) => hours > (config.maxHoursPerDay[dayIndex] ?? 0));
+function requiredWeeklyHours(config: UserConfig): number {
+  return config.maxHoursPerDay.reduce((sum, hours) => sum + hours, 0);
 }
 
 function includeWeekInSearch(week: WeekDocument, query: string): boolean {
@@ -411,6 +404,7 @@ export async function listWeekSummaries(
   const db = await readDb();
   ensureUser(db, userId);
   const config = normalizeConfig(db.configs[userId] ?? createEmptyConfig(userId));
+  const requiredHours = requiredWeeklyHours(config);
 
   return Object.values(db.weeks)
     .filter((week) => week.userId === userId)
@@ -418,11 +412,14 @@ export async function listWeekSummaries(
     .sort((a, b) => b.weekStartDate.localeCompare(a.weekStartDate))
     .map((week) => {
       const hours = totalWeekHours(week);
+      const hoursDelta = hours - requiredHours;
       return {
         weekStartDate: week.weekStartDate,
         weekEndDate: week.weekEndDate,
         totalHours: hours,
-        exceededMaxHours: exceedsDailyMaxHours(week, config),
+        requiredHours,
+        hoursDelta,
+        hoursStatus: hoursDelta === 0 ? "match" : hoursDelta < 0 ? "under" : "over",
         updatedAt: week.updatedAt,
       };
     });

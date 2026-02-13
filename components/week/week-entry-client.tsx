@@ -451,6 +451,20 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       ),
     [totalsByDay, maxHoursPerDay],
   );
+  const requiredWeekHours = useMemo(
+    () => maxHoursPerDay.reduce((sum, hours) => sum + hours, 0),
+    [maxHoursPerDay],
+  );
+  const weekTotalHours = useMemo(
+    () => totalsByDay.reduce((sum, hours) => sum + hours, 0),
+    [totalsByDay],
+  );
+  const weekHoursDelta = weekTotalHours - requiredWeekHours;
+  const weekHoursStatus = Math.abs(weekHoursDelta) <= HOUR_COMPARE_EPSILON
+    ? "match"
+    : weekHoursDelta < 0
+      ? "under"
+      : "over";
 
   const projectSummaries = useMemo(() => {
     const summaries = [] as Array<{
@@ -879,6 +893,21 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
               <span>
                 {rows.length} row{rows.length === 1 ? "" : "s"} total
               </span>
+              <span
+                className={cn(
+                  "rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                  weekHoursStatus === "match" && "bg-emerald-100 text-emerald-900",
+                  weekHoursStatus === "under" && "bg-amber-100 text-amber-900",
+                  weekHoursStatus === "over" && "bg-rose-100 text-rose-900",
+                )}
+              >
+                {weekHoursStatus === "match" &&
+                  `Matches required (${formatHours(weekTotalHours)}/${formatHours(requiredWeekHours)}h)`}
+                {weekHoursStatus === "under" &&
+                  `Missing ${formatHours(Math.abs(weekHoursDelta))}h (${formatHours(weekTotalHours)}/${formatHours(requiredWeekHours)}h)`}
+                {weekHoursStatus === "over" &&
+                  `Over by ${formatHours(weekHoursDelta)}h (${formatHours(weekTotalHours)}/${formatHours(requiredWeekHours)}h)`}
+              </span>
             </div>
           </div>
 
@@ -914,6 +943,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
             .
           </div>
         )}
+
       </Card>
 
       <Card className="p-4 sm:p-5">

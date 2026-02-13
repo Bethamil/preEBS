@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getWeekEndDate, normalizeWeekStart } from "@/lib/date";
-import { getConfig, getRecentCombos, getWeek, saveWeek } from "@/lib/store";
+import { deleteWeek, getConfig, getRecentCombos, getWeek, saveWeek } from "@/lib/store";
 import type { WeekDocument, WeekRowInput } from "@/lib/types";
 
 async function readWeekStart(
@@ -61,4 +61,22 @@ export async function PUT(
 
   const week = await saveWeek(weekStartDate as WeekDocument["weekStartDate"], rows);
   return NextResponse.json({ week });
+}
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ weekStartDate: string }> },
+) {
+  const weekStartDate = await readWeekStart(context);
+  if (!weekStartDate) {
+    return NextResponse.json({ error: "Invalid week start date" }, { status: 400 });
+  }
+
+  const existing = await getWeek(weekStartDate as WeekDocument["weekStartDate"]);
+  if (!existing) {
+    return NextResponse.json({ error: "Week not found" }, { status: 404 });
+  }
+
+  await deleteWeek(weekStartDate as WeekDocument["weekStartDate"]);
+  return new NextResponse(null, { status: 204 });
 }

@@ -1,18 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { DeleteIconButton } from "@/components/ui/delete-icon-button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
-import { currentWeekStart, formatWeekRange, getIsoWeekNumber } from "@/lib/date";
+import { currentWeekStart, formatWeekRange, getIsoWeekNumber, normalizeWeekStart } from "@/lib/date";
 import type { WeekSummary } from "@/lib/types";
 import { formatHours } from "@/lib/utils";
 
 interface WeeksResponse {
   weeks: WeekSummary[];
+}
+
+interface ApiErrorResponse {
+  error?: string;
 }
 
 function useDebounced<T>(value: T, delayMs: number): T {
@@ -30,12 +35,15 @@ export function WeeksOverviewClient() {
   const { pushToast } = useToast();
   const [weeks, setWeeks] = useState<WeekSummary[]>([]);
   const [search, setSearch] = useState("");
+  const [newWeekStartDate, setNewWeekStartDate] = useState(currentWeekStart());
+  const [creatingWeek, setCreatingWeek] = useState(false);
+  const [deletingWeekStartDate, setDeletingWeekStartDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const debouncedSearch = useDebounced(search, 250);
 
-  useEffect(() => {
-    const run = async () => {
+  const loadWeeks = useCallback(async () => {
+    try {
       setLoading(true);
       const query = new URLSearchParams();
       if (debouncedSearch.trim()) {
@@ -45,13 +53,20 @@ export function WeeksOverviewClient() {
       const response = await fetch(`/api/weeks?${query.toString()}`, {
         cache: "no-store",
       });
+      if (!response.ok) {
+        pushToast("Could not load weeks.", "error");
+        return;
+      }
       const data = (await response.json()) as WeeksResponse;
       setWeeks(data.weeks);
+    } finally {
       setLoading(false);
-    };
+    }
+  }, [debouncedSearch, pushToast]);
 
-    run();
-  }, [debouncedSearch]);
+  useEffect(() => {
+    void loadWeeks();
+  }, [loadWeeks]);
 
   const totalLogged = useMemo(
     () => weeks.reduce((sum, week) => sum + week.totalHours, 0),
@@ -80,6 +95,64 @@ export function WeeksOverviewClient() {
     pushToast("JSON export ready.", "success");
   };
 
+  const addWeek = async () => {
+    const normalizedWeekStartDate = normalizeWeekStart(newWeekStartDate);
+    if (!normalizedWeekStartDate) {
+      pushToast("Pick a valid week start date.", "error");
+      return;
+    }
+
+    setCreatingWeek(true);
+    try {
+      const response = await fetch("/api/weeks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weekStartDate: normalizedWeekStartDate }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as ApiErrorResponse;
+        if (response.status === 409) {
+          pushToast(payload.error ?? "Week already exists.", "error");
+          return;
+        }
+        pushToast(payload.error ?? "Could not create week.", "error");
+        return;
+      }
+
+      setNewWeekStartDate(normalizedWeekStartDate);
+      await loadWeeks();
+      pushToast(`Week ${normalizedWeekStartDate} created.`, "success");
+    } finally {
+      setCreatingWeek(false);
+    }
+  };
+
+  const removeWeek = async (weekStartDate: string) => {
+    const confirmed = window.confirm(`Delete week ${weekStartDate}? This cannot be undone.`);
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingWeekStartDate(weekStartDate);
+    try {
+      const response = await fetch(`/api/weeks/${weekStartDate}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as ApiErrorResponse;
+        pushToast(payload.error ?? "Could not delete week.", "error");
+        return;
+      }
+
+      await loadWeeks();
+      pushToast(`Week ${weekStartDate} deleted.`, "success");
+    } finally {
+      setDeletingWeekStartDate(null);
+    }
+  };
+
   return (
     <section className="space-y-6">
       <Card className="p-5 sm:p-6">
@@ -96,7 +169,7 @@ export function WeeksOverviewClient() {
           </Link>
         </div>
 
-        <div className="mt-5 grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-[1fr_auto_auto] xl:items-end">
           <label className="space-y-1">
             <span className="text-sm font-medium">Search by date, project, task, or hour type</span>
             <Input
@@ -105,6 +178,20 @@ export function WeeksOverviewClient() {
               placeholder="e.g. 2026-02-09 or Development"
             />
           </label>
+          <div className="space-y-1">
+            <span className="text-sm font-medium">Add week (pick any date in that week)</span>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                type="date"
+                value={newWeekStartDate}
+                onChange={(event) => setNewWeekStartDate(event.target.value)}
+                className="sm:w-[11rem]"
+              />
+              <Button onClick={addWeek} disabled={creatingWeek}>
+                {creatingWeek ? "Adding..." : "Add Week"}
+              </Button>
+            </div>
+          </div>
           <div className="rounded-xl border border-[var(--color-border)] bg-white px-4 py-3 text-sm">
             <p className="text-[var(--color-text-muted)]">Total logged in list</p>
             <p className="text-xl font-semibold">{formatHours(totalLogged)}h</p>
@@ -164,13 +251,19 @@ export function WeeksOverviewClient() {
                         {formatHours(week.totalHours)}h
                       </td>
                       <td className="px-4 py-4 align-middle">
-                        {week.exceededMaxHours ? (
-                          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900">
-                            Exceeded
-                          </span>
-                        ) : (
+                        {week.hoursStatus === "match" && (
                           <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-900">
-                            Within Limit
+                            Matches Required ({formatHours(week.requiredHours)}h)
+                          </span>
+                        )}
+                        {week.hoursStatus === "under" && (
+                          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900">
+                            Missing {formatHours(Math.abs(week.hoursDelta))}h
+                          </span>
+                        )}
+                        {week.hoursStatus === "over" && (
+                          <span className="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-900">
+                            Over by {formatHours(week.hoursDelta)}h
                           </span>
                         )}
                       </td>
@@ -194,6 +287,12 @@ export function WeeksOverviewClient() {
                           >
                             Export JSON
                           </Button>
+                          <DeleteIconButton
+                            size="sm"
+                            label={`Delete week ${week.weekStartDate}`}
+                            onClick={() => removeWeek(week.weekStartDate)}
+                            disabled={deletingWeekStartDate === week.weekStartDate}
+                          />
                         </div>
                       </td>
                     </tr>
