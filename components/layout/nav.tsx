@@ -22,7 +22,7 @@ export function Nav() {
             key={item.href}
             href={item.href}
             className={cn(
-              "rounded-lg px-3 py-1.5 text-sm font-semibold tracking-[0.02em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]",
+              "rounded-lg px-3 py-1.5 font-mono text-sm font-semibold uppercase tracking-[0.06em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]",
               active
                 ? "border border-[var(--nav-active-border)] bg-[var(--nav-active-bg)] text-[var(--color-text)] shadow-[var(--nav-active-shadow)]"
                 : "border border-transparent text-[var(--color-text-soft)] hover:border-[var(--color-border-strong)] hover:bg-[var(--color-panel-strong)] hover:text-[var(--color-text)]",

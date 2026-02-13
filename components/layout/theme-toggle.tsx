@@ -27,7 +27,7 @@ export function ThemeToggle() {
   return (
     <button
       type="button"
-      className="inline-flex h-9 items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-panel)] px-3 font-mono text-xs font-semibold tracking-[0.08em] text-[var(--color-text-soft)] transition hover:border-[var(--color-border-strong)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+      className="inline-flex h-9 items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-panel)] px-3 font-mono text-xs font-semibold uppercase tracking-[0.1em] text-[var(--color-text-soft)] transition hover:border-[var(--color-border-strong)] hover:text-[var(--color-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
       onClick={() => {
         setTheme(nextTheme);
         applyTheme(nextTheme);
@@ -45,7 +45,7 @@ export function ThemeToggle() {
           style={{ transform: theme === "dark" ? "translateX(16px)" : "translateX(2px)" }}
         />
       </span>
-      {theme === "dark" ? "DARK" : "LIGHT"}
+      {theme === "dark" ? "Dark" : "Light"}
     </button>
   );
 }
