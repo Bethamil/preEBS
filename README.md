@@ -6,7 +6,7 @@ PreEBS is a UX-first weekly timesheet app designed for people who still have to 
 
 - Next.js 16 (App Router)
 - Tailwind CSS v4
-- File-backed NoSQL document store (JSON documents in `data/preebs-db.json`)
+- File-backed JSON storage (`data/preebs-db.json`)
 
 ## Features
 
@@ -68,9 +68,9 @@ By default, Docker Compose publishes the app on `http://localhost:43117`. To use
 
 The app persists its JSON database in `/app/data/preebs-db.json`. Mount `/app/data` to a volume in production to keep data across deploys/restarts.
 
-## Data model (NoSQL)
+## Data model (JSON file storage)
 
-The JSON document database stores:
+The JSON storage file stores:
 
 - `users[]`
 - `configs[userId]`

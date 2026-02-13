@@ -11,7 +11,7 @@ Primary goal: make weekly entry dramatically faster and clearer than EBS.
 - Next.js 16 App Router
 - TypeScript (strict)
 - Tailwind CSS v4
-- Local file-backed NoSQL document store (`data/preebs-db.json`)
+- Local file-backed JSON storage (`data/preebs-db.json`)
 
 ## Non-Negotiables
 - UX quality is the top priority.
