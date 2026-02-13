@@ -1034,7 +1034,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
 
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="secondary" size="sm" onClick={addCustomProjectRow}>
-              Add Project
+              Add Custom Project
             </Button>
             <Button variant="secondary" size="sm" onClick={copyPrevious}>
               Copy Previous
