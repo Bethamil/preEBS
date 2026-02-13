@@ -129,11 +129,6 @@ export function WeeksOverviewClient() {
   };
 
   const removeWeek = async (weekStartDate: string) => {
-    const confirmed = window.confirm(`Delete week ${weekStartDate}? This cannot be undone.`);
-    if (!confirmed) {
-      return;
-    }
-
     setDeletingWeekStartDate(weekStartDate);
     try {
       const response = await fetch(`/api/weeks/${weekStartDate}`, {
@@ -290,6 +285,8 @@ export function WeeksOverviewClient() {
                           <DeleteIconButton
                             size="sm"
                             label={`Delete week ${week.weekStartDate}`}
+                            confirm
+                            confirmLabel={`Confirm delete week ${week.weekStartDate}`}
                             onClick={() => removeWeek(week.weekStartDate)}
                             disabled={deletingWeekStartDate === week.weekStartDate}
                           />

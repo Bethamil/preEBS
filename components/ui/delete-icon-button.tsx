@@ -1,4 +1,6 @@
-import type { ButtonHTMLAttributes } from "react";
+"use client";
+
+import { useEffect, useState, type ButtonHTMLAttributes } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -7,6 +9,9 @@ type DeleteIconButtonSize = "sm" | "md";
 interface DeleteIconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   label: string;
   size?: DeleteIconButtonSize;
+  confirm?: boolean;
+  confirmLabel?: string;
+  confirmTimeoutMs?: number;
 }
 
 const sizeStyles: Record<DeleteIconButtonSize, string> = {
@@ -17,32 +22,112 @@ const sizeStyles: Record<DeleteIconButtonSize, string> = {
 export function DeleteIconButton({
   label,
   size = "md",
+  confirm = false,
+  confirmLabel,
+  confirmTimeoutMs = 4000,
   className,
   type = "button",
+  disabled,
+  onClick,
+  onBlur,
+  onKeyDown,
   ...props
 }: DeleteIconButtonProps) {
+  const [isConfirming, setIsConfirming] = useState(false);
+
+  useEffect(() => {
+    if (!isConfirming) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setIsConfirming(false);
+    }, confirmTimeoutMs);
+
+    return () => window.clearTimeout(timeout);
+  }, [confirmTimeoutMs, isConfirming]);
+
+  useEffect(() => {
+    if (disabled && isConfirming) {
+      setIsConfirming(false);
+    }
+  }, [disabled, isConfirming]);
+
+  const buttonLabel = isConfirming ? confirmLabel ?? `Confirm ${label.toLowerCase()}` : label;
+
   return (
-    <button
-      type={type}
-      aria-label={label}
-      title={label}
-      className={cn(
-        "inline-flex items-center justify-center rounded-lg border border-[var(--color-border)] bg-white text-[var(--color-text-soft)] shadow-[0_1px_2px_rgba(10,20,35,0.05)] transition hover:border-[var(--color-danger)] hover:bg-[var(--color-danger)] hover:text-white hover:shadow-[0_4px_12px_rgba(180,83,77,0.42)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-danger)] disabled:cursor-not-allowed disabled:opacity-55",
-        sizeStyles[size],
-        className,
+    <span className="relative isolate inline-flex items-center">
+      <button
+        type={type}
+        aria-label={buttonLabel}
+        title={buttonLabel}
+        disabled={disabled}
+        className={cn(
+          "inline-flex items-center justify-center rounded-lg shadow-[0_1px_2px_rgba(10,20,35,0.05)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-danger)] disabled:cursor-not-allowed disabled:opacity-55",
+          isConfirming
+            ? "border border-[var(--color-danger)] bg-[var(--color-danger)] text-white shadow-[0_4px_12px_rgba(180,83,77,0.42)]"
+            : "border border-[var(--color-border)] bg-white text-[var(--color-text-soft)] hover:border-[var(--color-danger)] hover:bg-[var(--color-danger)] hover:text-white hover:shadow-[0_4px_12px_rgba(180,83,77,0.42)]",
+          sizeStyles[size],
+          className,
+        )}
+        onClick={(event) => {
+          if (!confirm || disabled) {
+            onClick?.(event);
+            return;
+          }
+
+          if (isConfirming) {
+            setIsConfirming(false);
+            onClick?.(event);
+            return;
+          }
+
+          setIsConfirming(true);
+        }}
+        onBlur={(event) => {
+          if (isConfirming) {
+            setIsConfirming(false);
+          }
+          onBlur?.(event);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && isConfirming) {
+            event.preventDefault();
+            setIsConfirming(false);
+            return;
+          }
+          onKeyDown?.(event);
+        }}
+        {...props}
+      >
+        {isConfirming ? (
+          <svg viewBox="0 0 16 16" className="h-5 w-5" fill="none" aria-hidden>
+            <path
+              d="M3.5 8.5 6.5 11.5 12.5 4.5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 16 16" className="h-6 w-6" fill="none" aria-hidden>
+            <path
+              d="M2.5 4h11M6 2.5h4M5 4v8.5c0 .55.45 1 1 1h4c.55 0 1-.45 1-1V4"
+              stroke="currentColor"
+              strokeWidth="1.3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path d="M7 6.5v4.5M9 6.5v4.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>
+        )}
+      </button>
+      {isConfirming && (
+        <span className="pointer-events-none absolute right-full top-1/2 z-20 mr-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--color-danger)] bg-white px-2 py-0.5 text-[11px] font-semibold text-[var(--color-danger)] shadow-sm">
+          Click again to delete
+        </span>
       )}
-      {...props}
-    >
-      <svg viewBox="0 0 16 16" className="h-6 w-6" fill="none" aria-hidden>
-        <path
-          d="M2.5 4h11M6 2.5h4M5 4v8.5c0 .55.45 1 1 1h4c.55 0 1-.45 1-1V4"
-          stroke="currentColor"
-          strokeWidth="1.3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <path d="M7 6.5v4.5M9 6.5v4.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      </svg>
-    </button>
+    </span>
   );
 }

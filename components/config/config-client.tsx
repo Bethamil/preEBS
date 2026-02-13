@@ -218,11 +218,6 @@ export function ConfigClient() {
   };
 
   const removeProject = (projectId: string) => {
-    const confirmed = window.confirm("Delete this project and all nested tasks/hour types?");
-    if (!confirmed) {
-      return;
-    }
-
     setConfig((current) => {
       if (!current) {
         return current;
@@ -297,11 +292,6 @@ export function ConfigClient() {
   };
 
   const removeTask = (projectId: string, taskId: string) => {
-    const confirmed = window.confirm("Delete this task and all hour types?");
-    if (!confirmed) {
-      return;
-    }
-
     setConfig((current) => {
       if (!current) {
         return current;
@@ -590,6 +580,8 @@ export function ConfigClient() {
                       <DeleteIconButton
                         label="Delete project"
                         size="sm"
+                        confirm
+                        confirmLabel="Confirm delete project"
                         onClick={() => removeProject(project.id)}
                       />
                     </div>
@@ -655,6 +647,8 @@ export function ConfigClient() {
                               <DeleteIconButton
                                 label="Delete task"
                                 size="sm"
+                                confirm
+                                confirmLabel="Confirm delete task"
                                 onClick={() => removeTask(project.id, task.id)}
                               />
                             </div>

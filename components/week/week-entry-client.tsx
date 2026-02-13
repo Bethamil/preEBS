@@ -201,6 +201,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   const [focusedDayIndex, setFocusedDayIndex] = useState<number | null>(0);
   const [rowSearch, setRowSearch] = useState("");
   const [openProjectIds, setOpenProjectIds] = useState<string[]>([]);
+  const [pendingCustomProjectDeleteId, setPendingCustomProjectDeleteId] = useState<string | null>(null);
 
   const [quickComboSearch, setQuickComboSearch] = useState("");
 
@@ -337,6 +338,18 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     window.addEventListener("keydown", listener);
     return () => window.removeEventListener("keydown", listener);
   }, []);
+
+  useEffect(() => {
+    if (!pendingCustomProjectDeleteId) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setPendingCustomProjectDeleteId(null);
+    }, 4000);
+
+    return () => window.clearTimeout(timeout);
+  }, [pendingCustomProjectDeleteId]);
 
   const snapshot = useMemo(
     () => serializeState(rows, customProjects),
@@ -808,31 +821,23 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   };
 
   const deleteRow = (rowId: string) => {
-    const rowToDelete = rows.find((row) => row.id === rowId);
-    if (!rowToDelete) {
-      return;
-    }
-
-    const hasRegisteredHours = rowToDelete.hours.some((hours) => hours > 0);
-    if (hasRegisteredHours) {
-      const confirmed = window.confirm("Delete this task with registered hours?");
-      if (!confirmed) {
-        return;
-      }
-    }
-
     setRows((current) => current.filter((row) => row.id !== rowId));
   };
 
   const deleteCustomProject = (projectId: string) => {
-    const confirmed = window.confirm("Delete this custom project and all its rows?");
-    if (!confirmed) {
-      return;
-    }
     setCustomProjects((current) => current.filter((project) => project.id !== projectId));
     setRows((current) => current.filter((row) => row.projectId !== projectId));
     setOpenProjectIds((current) => current.filter((id) => id !== projectId));
+    setPendingCustomProjectDeleteId((current) => (current === projectId ? null : current));
     pushToast("Custom project deleted.", "info");
+  };
+
+  const requestCustomProjectDelete = (projectId: string) => {
+    if (pendingCustomProjectDeleteId === projectId) {
+      deleteCustomProject(projectId);
+      return;
+    }
+    setPendingCustomProjectDeleteId(projectId);
   };
 
   const clearDay = (dayIndex: number) => {
@@ -1288,9 +1293,13 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => deleteCustomProject(projectId)}
+                      className={cn(
+                        pendingCustomProjectDeleteId === projectId &&
+                          "border border-[var(--color-danger)] bg-[var(--color-danger)] text-white hover:bg-[var(--color-danger)] hover:text-white",
+                      )}
+                      onClick={() => requestCustomProjectDelete(projectId)}
                     >
-                      Delete Project
+                      {pendingCustomProjectDeleteId === projectId ? "Confirm Delete" : "Delete Project"}
                     </Button>
                   )}
                   <Button
@@ -1510,7 +1519,12 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                                   {formatHours(rowTotal)}h
                                 </td>
                                 <td className="px-2 py-1 text-right">
-                                  <DeleteIconButton label="Delete task" onClick={() => deleteRow(row.id)} />
+                                  <DeleteIconButton
+                                    label="Delete task"
+                                    confirm={rowTotal > 0}
+                                    confirmLabel="Confirm delete task with hours"
+                                    onClick={() => deleteRow(row.id)}
+                                  />
                                 </td>
                               </tr>
                             );
