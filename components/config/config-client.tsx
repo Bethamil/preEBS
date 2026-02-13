@@ -93,7 +93,6 @@ export function ConfigClient() {
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState("");
   const [search, setSearch] = useState("");
   const [openProjectIds, setOpenProjectIds] = useState<string[]>([]);
-  const [collapsedTaskMap, setCollapsedTaskMap] = useState<Record<string, boolean>>({});
   const [collapsedHourTypeMap, setCollapsedHourTypeMap] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -274,7 +273,6 @@ export function ConfigClient() {
       };
     });
     setOpenProjectIds((current) => (current.includes(projectId) ? current : [...current, projectId]));
-    setCollapsedTaskMap((current) => ({ ...current, [taskId]: false }));
     setCollapsedHourTypeMap((current) => ({ ...current, [taskId]: true }));
   };
 
@@ -320,11 +318,6 @@ export function ConfigClient() {
           };
         }),
       };
-    });
-    setCollapsedTaskMap((current) => {
-      const next = { ...current };
-      delete next[taskId];
-      return next;
     });
     setCollapsedHourTypeMap((current) => {
       const next = { ...current };
@@ -391,10 +384,6 @@ export function ConfigClient() {
     setOpenProjectIds((current) =>
       current.includes(projectId) ? current.filter((id) => id !== projectId) : [...current, projectId],
     );
-  };
-
-  const toggleTask = (taskId: string) => {
-    setCollapsedTaskMap((current) => ({ ...current, [taskId]: !(current[taskId] ?? false) }));
   };
 
   const toggleHourTypeEditor = (taskId: string) => {
@@ -613,7 +602,6 @@ export function ConfigClient() {
 
                     <div className="space-y-2">
                       {project.tasks.map((task, taskIndex) => {
-                        const taskCollapsed = collapsedTaskMap[task.id] ?? false;
                         const hourTypeCollapsed = collapsedHourTypeMap[task.id] ?? true;
                         const currentHourType = task.hourTypes[0] ?? {
                           id: DEFAULT_HOUR_TYPE_ID,
@@ -629,14 +617,6 @@ export function ConfigClient() {
                             className="rounded-xl border border-[var(--color-border)] bg-[var(--color-panel-strong)] p-3"
                           >
                             <div className="flex flex-wrap items-center gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => toggleTask(task.id)}
-                                aria-label={taskCollapsed ? "Expand task" : "Collapse task"}
-                              >
-                                {taskCollapsed ? "Expand" : "Collapse"}
-                              </Button>
                               <Input
                                 aria-label="Task name"
                                 value={task.name}
@@ -682,37 +662,28 @@ export function ConfigClient() {
                             <div
                               className={cn(
                                 "grid overflow-hidden transition-[grid-template-rows,opacity] duration-200",
-                                taskCollapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100",
+                                hourTypeCollapsed
+                                  ? "grid-rows-[0fr] opacity-0"
+                                  : "grid-rows-[1fr] opacity-100",
                               )}
                             >
                               <div className="min-h-0">
-                                <div
-                                  className={cn(
-                                    "grid overflow-hidden transition-[grid-template-rows,opacity] duration-200",
-                                    hourTypeCollapsed
-                                      ? "grid-rows-[0fr] opacity-0"
-                                      : "grid-rows-[1fr] opacity-100",
-                                  )}
-                                >
-                                  <div className="min-h-0">
-                                    <div className="mt-3 rounded-lg border border-[var(--color-border)] bg-white p-3">
-                                      <p className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-                                        Hour Type (single)
-                                      </p>
-                                      <Input
-                                        aria-label="Hour type name"
-                                        value={currentHourType.name}
-                                        onChange={(event) =>
-                                          updateHourTypeName(project.id, task.id, event.target.value)
-                                        }
-                                        className="mt-2 h-9"
-                                        placeholder="Hour type name"
-                                      />
-                                      <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-                                        One hour type per task.
-                                      </p>
-                                    </div>
-                                  </div>
+                                <div className="mt-3 rounded-lg border border-[var(--color-border)] bg-white p-3">
+                                  <p className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+                                    Hour Type (single)
+                                  </p>
+                                  <Input
+                                    aria-label="Hour type name"
+                                    value={currentHourType.name}
+                                    onChange={(event) =>
+                                      updateHourTypeName(project.id, task.id, event.target.value)
+                                    }
+                                    className="mt-2 h-9"
+                                    placeholder="Hour type name"
+                                  />
+                                  <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                                    One hour type per task.
+                                  </p>
                                 </div>
                               </div>
                             </div>
