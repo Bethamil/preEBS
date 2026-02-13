@@ -13,13 +13,13 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<Variant, string> = {
   primary:
-    "bg-[var(--color-accent)] text-[var(--color-accent-foreground)] shadow-sm hover:bg-[var(--color-accent-strong)] focus-visible:ring-[var(--color-ring)]",
+    "border border-[var(--color-accent-border)] bg-[linear-gradient(135deg,var(--color-accent),var(--color-accent-alt))] text-[var(--color-accent-foreground)] shadow-[0_12px_26px_var(--color-accent-glow)] hover:brightness-105 focus-visible:ring-[var(--color-ring)]",
   secondary:
-    "bg-[var(--color-panel)] text-[var(--color-text)] border border-[var(--color-border)] hover:bg-[var(--color-panel-strong)] focus-visible:ring-[var(--color-ring)]",
+    "border border-[var(--color-border)] bg-[var(--color-panel)] text-[var(--color-text)] shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] hover:border-[var(--color-border-strong)] hover:bg-[var(--color-panel-strong)] focus-visible:ring-[var(--color-ring)]",
   destructive:
-    "bg-[var(--color-danger)] text-white hover:bg-[var(--color-danger-strong)] focus-visible:ring-[var(--color-danger)]",
+    "border border-[var(--color-danger)] bg-[var(--color-danger)] text-[var(--color-danger-foreground)] shadow-[0_10px_24px_var(--color-danger-glow)] hover:bg-[var(--color-danger-strong)] focus-visible:ring-[var(--color-danger)]",
   ghost:
-    "text-[var(--color-text-soft)] hover:bg-[var(--color-panel)] hover:text-[var(--color-text)] focus-visible:ring-[var(--color-ring)]",
+    "border border-transparent text-[var(--color-text-soft)] hover:border-[var(--color-border)] hover:bg-[var(--color-panel)] hover:text-[var(--color-text)] focus-visible:ring-[var(--color-ring)]",
 };
 
 const sizeStyles: Record<Size, string> = {
@@ -39,7 +39,7 @@ export function Button({
     <button
       type={type}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-xl font-medium transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-55",
+        "inline-flex items-center justify-center gap-2 rounded-xl font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-55",
         variantStyles[variant],
         sizeStyles[size],
         className,

@@ -187,7 +187,7 @@ export function WeeksOverviewClient() {
               </Button>
             </div>
           </div>
-          <div className="rounded-xl border border-[var(--color-border)] bg-white px-4 py-3 text-sm">
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-panel)] px-4 py-3 text-sm">
             <p className="text-[var(--color-text-muted)]">Total logged in list</p>
             <p className="text-xl font-semibold">{formatHours(totalLogged)}h</p>
           </div>
@@ -247,17 +247,17 @@ export function WeeksOverviewClient() {
                       </td>
                       <td className="px-4 py-4 align-middle">
                         {week.hoursStatus === "match" && (
-                          <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-900">
+                          <span className="status-ok rounded-full border px-2.5 py-1 text-xs font-semibold">
                             Matches Required ({formatHours(week.requiredHours)}h)
                           </span>
                         )}
                         {week.hoursStatus === "under" && (
-                          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900">
+                          <span className="status-warn rounded-full border px-2.5 py-1 text-xs font-semibold">
                             Missing {formatHours(Math.abs(week.hoursDelta))}h
                           </span>
                         )}
                         {week.hoursStatus === "over" && (
-                          <span className="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-900">
+                          <span className="status-danger rounded-full border px-2.5 py-1 text-xs font-semibold">
                             Over by {formatHours(week.hoursDelta)}h
                           </span>
                         )}

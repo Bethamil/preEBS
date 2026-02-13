@@ -30,13 +30,13 @@ import type {
 import { clampHours, cn, formatHours, parseNumberInput, safeTrim } from "@/lib/utils";
 
 const PROJECT_ACCENT_COLORS = [
-  "#1D6070",
-  "#B8862B",
-  "#4B7A4F",
-  "#7D5678",
-  "#2D6A8A",
-  "#8C5A2E",
-  "#6A7C2C",
+  "#69E48A",
+  "#A36AF0",
+  "#DEB163",
+  "#8F63DE",
+  "#54D477",
+  "#C96BA6",
+  "#B2A45F",
 ] as const;
 
 const LAST_EDITED_PROJECT_STORAGE_KEY = "preebs:last-edited-project";
@@ -1021,10 +1021,10 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
               </span>
               <span
                 className={cn(
-                  "rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                  weekHoursStatus === "match" && "bg-emerald-100 text-emerald-900",
-                  weekHoursStatus === "under" && "bg-amber-100 text-amber-900",
-                  weekHoursStatus === "over" && "bg-rose-100 text-rose-900",
+                  "rounded-full border px-2.5 py-0.5 text-xs font-semibold",
+                  weekHoursStatus === "match" && "status-ok",
+                  weekHoursStatus === "under" && "status-warn",
+                  weekHoursStatus === "over" && "status-danger",
                 )}
               >
                 {weekHoursStatus === "match" &&
@@ -1051,7 +1051,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
         </div>
 
         {exceedsMax && (
-          <div className="mt-3 rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
+          <div className="status-danger mt-3 rounded-xl border px-3 py-2 text-sm">
             Daily max exceeded for{" "}
             {exceededDayIndexes
               .map(
@@ -1105,7 +1105,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                 }
               />
               <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                <kbd className="inline-flex h-6 items-center rounded-md border border-[var(--color-border)] bg-white px-2 text-[11px] font-medium text-[var(--color-text-muted)]">
+                <kbd className="inline-flex h-6 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-panel)] px-2 text-[11px] font-medium text-[var(--color-text-muted)]">
                   ⌘K
                 </kbd>
               </span>
@@ -1117,7 +1117,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
               <button
                 key={comboKey(combo.projectId, combo.taskId, combo.hourTypeId)}
                 type="button"
-                className="inline-flex max-w-full items-center gap-1 rounded-full border border-[var(--color-border)] bg-white px-2.5 py-1 text-xs text-[var(--color-text-soft)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+                className="inline-flex max-w-full items-center gap-1 rounded-full border border-[var(--color-border)] bg-[var(--color-panel-strong)] px-2.5 py-1 text-xs text-[var(--color-text-soft)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
                 onClick={() => quickAddFromCombo(combo)}
                 title={combo.label}
               >
@@ -1163,10 +1163,10 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
               className={cn(
                 "flex cursor-pointer items-center justify-between rounded-xl border px-2.5 py-2 transition hover:border-[var(--color-ring)]",
                 exceededDayIndexSet.has(index)
-                  ? "border-red-300 bg-red-50"
+                  ? "status-danger"
                   : exactDayIndexSet.has(index)
-                    ? "border-emerald-300 bg-emerald-50"
-                    : "border-[var(--color-border)] bg-white",
+                    ? "status-ok"
+                    : "border-[var(--color-border)] bg-[var(--color-panel-strong)]",
                 focusedDayIndex === index && "ring-2 ring-[var(--color-ring)]",
               )}
               role="button"
@@ -1233,7 +1233,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
           return (
             <section
               key={projectId}
-              className="rounded-2xl border border-[var(--color-border)] bg-white"
+              className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-panel)]"
               style={{ borderLeftColor: accentColor, borderLeftWidth: "4px" }}
             >
               <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] px-3 py-3">
@@ -1252,16 +1252,14 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                       />
                       <h3 className="truncate text-base font-semibold">{projectName}</h3>
                       {isCustom && (
-                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-700">
+                        <span className="rounded-full border border-[var(--color-border-strong)] bg-[var(--color-panel-strong)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-soft)]">
                           Custom
                         </span>
                       )}
                       <span
                         className={cn(
                           "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]",
-                          status === "warning"
-                            ? "border-amber-300 bg-amber-50 text-amber-900"
-                            : "border-emerald-200 bg-emerald-50 text-emerald-800",
+                          status === "warning" ? "status-warn" : "status-ok",
                         )}
                       >
                         {status === "warning" ? "Warning" : "OK"}
@@ -1295,7 +1293,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                       variant="ghost"
                       className={cn(
                         pendingCustomProjectDeleteId === projectId &&
-                          "border border-[var(--color-danger)] bg-[var(--color-danger)] text-white hover:bg-[var(--color-danger)] hover:text-white",
+                          "border border-[var(--color-danger)] bg-[var(--color-danger)] text-[#22050f] hover:bg-[var(--color-danger)] hover:text-[#22050f]",
                       )}
                       onClick={() => requestCustomProjectDelete(projectId)}
                     >
@@ -1343,7 +1341,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                                   className={cn(
                                     "w-full rounded-md px-1 py-1 text-left text-[10px] transition",
                                     focusedDayIndex === index &&
-                                      "bg-[rgba(29,96,112,0.08)] text-[var(--color-accent)]",
+                                      "bg-[rgba(105,228,138,0.16)] text-[var(--color-accent)]",
                                   )}
                                   onClick={() => setFocusedDayIndex(index)}
                                 >
@@ -1477,7 +1475,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                                     key={`${row.id}-${dayIndex}`}
                                     className={cn(
                                       "px-1 py-1.5",
-                                      focusedDayIndex === dayIndex && "bg-[rgba(29,96,112,0.08)]",
+                                      focusedDayIndex === dayIndex && "bg-[rgba(105,228,138,0.14)]",
                                     )}
                                   >
                                     <Input

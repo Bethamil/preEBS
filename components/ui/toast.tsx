@@ -46,10 +46,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             role="status"
             className={cn(
               "rounded-xl border px-4 py-3 text-sm font-medium shadow-lg backdrop-blur",
-              item.tone === "success" &&
-                "border-emerald-300 bg-emerald-50/95 text-emerald-900",
-              item.tone === "error" && "border-rose-300 bg-rose-50/95 text-rose-900",
-              item.tone === "info" && "border-slate-300 bg-slate-50/95 text-slate-900",
+              item.tone === "success" && "status-ok",
+              item.tone === "error" && "status-danger",
+              item.tone === "info" && "border-[var(--color-border-strong)] bg-[var(--info-toast-bg)] text-[var(--color-text)]",
             )}
           >
             {item.message}

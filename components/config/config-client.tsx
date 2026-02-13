@@ -16,13 +16,13 @@ import type { Project, UserConfig } from "@/lib/types";
 import { cn, formatHours } from "@/lib/utils";
 
 const PROJECT_ACCENT_COLORS = [
-  "#1D6070",
-  "#B8862B",
-  "#4B7A4F",
-  "#7D5678",
-  "#2D6A8A",
-  "#8C5A2E",
-  "#6A7C2C",
+  "#69E48A",
+  "#A36AF0",
+  "#DEB163",
+  "#8F63DE",
+  "#54D477",
+  "#C96BA6",
+  "#B2A45F",
 ] as const;
 
 interface ConfigResponse {
@@ -435,7 +435,7 @@ export function ConfigClient() {
         </div>
 
         <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_1fr]">
-          <div className="rounded-xl border border-[var(--color-border)] bg-white p-3">
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-panel)] p-3">
             <p className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
               Max Hours Per Day
             </p>
@@ -508,7 +508,7 @@ export function ConfigClient() {
         )}
 
         {filteredProjects.length === 0 && config.projects.length > 0 && (
-          <div className="mt-4 rounded-xl border border-[var(--color-border)] bg-white p-8 text-center text-sm text-[var(--color-text-muted)]">
+          <div className="mt-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-panel)] p-8 text-center text-sm text-[var(--color-text-muted)]">
             Nothing matched this search.
           </div>
         )}
@@ -521,7 +521,7 @@ export function ConfigClient() {
             return (
               <section
                 key={project.id}
-                className="rounded-2xl border border-[var(--color-border)] bg-white"
+                className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-panel)]"
                 style={{ borderLeftColor: accentColor, borderLeftWidth: "4px" }}
               >
                 <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] px-3 py-3">
@@ -616,7 +616,7 @@ export function ConfigClient() {
                                 className="min-w-[12rem] flex-1"
                                 placeholder="Task name"
                               />
-                              <span className="rounded-full border border-[var(--color-border)] bg-white px-2 py-0.5 text-[11px] text-[var(--color-text-muted)]">
+                              <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-panel)] px-2 py-0.5 text-[11px] text-[var(--color-text-muted)]">
                                 {isDefaultHourType ? "Default type" : "Custom type"}
                               </span>
                               <Button
@@ -662,7 +662,7 @@ export function ConfigClient() {
                               )}
                             >
                               <div className="min-h-0">
-                                <div className="mt-3 rounded-lg border border-[var(--color-border)] bg-white p-3">
+                                <div className="mt-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-3">
                                   <p className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
                                     Hour Type (single)
                                   </p>
@@ -694,7 +694,7 @@ export function ConfigClient() {
       </Card>
 
       <div className="sticky bottom-3 z-30">
-        <div className="rounded-2xl border border-[var(--color-border)] bg-white/95 p-3 shadow-lg backdrop-blur-md sm:px-4">
+        <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--floating-panel-bg)] p-3 shadow-lg backdrop-blur-md sm:px-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-text-muted)]">
               <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-panel-strong)] px-2.5 py-1">
@@ -709,9 +709,7 @@ export function ConfigClient() {
               <span
                 className={cn(
                   "rounded-full border px-2.5 py-1",
-                  hasUnsavedChanges
-                    ? "border-amber-300 bg-amber-50 text-amber-900"
-                    : "border-emerald-200 bg-emerald-50 text-emerald-800",
+                  hasUnsavedChanges ? "status-warn" : "status-ok",
                 )}
               >
                 {hasUnsavedChanges ? "Unsaved changes" : "All changes saved"}

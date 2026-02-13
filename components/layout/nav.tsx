@@ -14,7 +14,7 @@ export function Nav() {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Primary" className="flex items-center gap-2">
+    <nav aria-label="Primary" className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--nav-surface)] p-1 shadow-[var(--surface-inset-shadow)]">
       {items.map((item) => {
         const active = pathname.startsWith(item.href);
         return (
@@ -22,10 +22,10 @@ export function Nav() {
             key={item.href}
             href={item.href}
             className={cn(
-              "rounded-xl px-3 py-2 text-sm font-medium transition",
+              "rounded-lg px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]",
               active
-                ? "bg-[var(--color-accent)] text-[var(--color-accent-foreground)]"
-                : "text-[var(--color-text-soft)] hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]",
+                ? "border border-[var(--nav-active-border)] bg-[var(--nav-active-bg)] text-[var(--color-text)] shadow-[var(--nav-active-shadow)]"
+                : "border border-transparent text-[var(--color-text-soft)] hover:border-[var(--color-border-strong)] hover:bg-[var(--color-panel-strong)] hover:text-[var(--color-text)]",
             )}
           >
             {item.label}

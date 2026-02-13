@@ -1,20 +1,123 @@
 @import "tailwindcss";
 
 :root {
-  --color-bg: #f6f7f3;
+  color-scheme: light;
+  --font-display: "Space Grotesk", "Aptos", "Segoe UI", "Trebuchet MS", sans-serif;
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", "Fira Code", "Menlo", monospace;
+  --color-bg: #f3f7f6;
   --color-panel: #ffffff;
-  --color-panel-strong: #f0f3ef;
-  --color-border: #d7ddd6;
-  --color-text: #18212d;
-  --color-text-soft: #2f3d4f;
-  --color-text-muted: #667486;
-  --color-accent: #1d6070;
-  --color-accent-strong: #144a57;
-  --color-accent-foreground: #e8f5f7;
-  --color-danger: #b4534d;
-  --color-danger-strong: #9d453f;
-  --color-warning: #b8862b;
-  --color-ring: #2a7182;
+  --color-panel-strong: #f2f4f9;
+  --color-panel-elevated: #fcfdff;
+  --color-border: #ced5e8;
+  --color-border-strong: #abb3d1;
+  --color-text: #2a2940;
+  --color-text-soft: #3a3f5c;
+  --color-text-muted: #67708e;
+  --color-accent: #63de84;
+  --color-accent-strong: #4ece72;
+  --color-accent-alt: #9860dd;
+  --color-accent-foreground: #0e160f;
+  --color-accent-border: rgba(99, 222, 132, 0.42);
+  --color-accent-glow: rgba(99, 222, 132, 0.28);
+  --color-danger: #c05aa0;
+  --color-danger-strong: #aa4a8c;
+  --color-danger-foreground: #220915;
+  --color-danger-glow: rgba(192, 90, 160, 0.28);
+  --color-warning: #cc9640;
+  --color-ring: #8f63de;
+  --color-status-ok-bg: rgba(99, 222, 132, 0.14);
+  --color-status-ok-border: rgba(99, 222, 132, 0.45);
+  --color-status-ok-text: #2c7341;
+  --color-status-warn-bg: rgba(204, 150, 64, 0.14);
+  --color-status-warn-border: rgba(204, 150, 64, 0.42);
+  --color-status-warn-text: #7f5511;
+  --color-status-danger-bg: rgba(192, 90, 160, 0.14);
+  --color-status-danger-border: rgba(192, 90, 160, 0.42);
+  --color-status-danger-text: #7f2d66;
+  --surface-shadow: 0 14px 34px rgba(48, 41, 88, 0.14);
+  --bg-spot-1: rgba(99, 222, 132, 0.14);
+  --bg-spot-2: rgba(152, 96, 221, 0.15);
+  --bg-spot-3: rgba(204, 150, 64, 0.1);
+  --bg-grad-start: #f8fcf8;
+  --bg-grad-mid: #f2f4fa;
+  --bg-grad-end: #f7f1fb;
+  --grid-line: rgba(140, 136, 173, 0.14);
+  --overlay-top: rgba(99, 222, 132, 0.02);
+  --overlay-mid: rgba(152, 96, 221, 0.03);
+  --overlay-bottom: rgba(204, 150, 64, 0.03);
+  --selection-bg: rgba(99, 222, 132, 0.24);
+  --selection-text: #132118;
+  --table-row-alt: rgba(239, 236, 247, 0.68);
+  --header-bg: rgba(247, 250, 255, 0.88);
+  --shell-glow-a: rgba(99, 222, 132, 0.15);
+  --shell-glow-b: rgba(152, 96, 221, 0.16);
+  --shell-glow-c: rgba(204, 150, 64, 0.1);
+  --nav-surface: rgba(255, 255, 255, 0.72);
+  --nav-active-border: rgba(99, 222, 132, 0.44);
+  --nav-active-bg: rgba(99, 222, 132, 0.16);
+  --nav-active-shadow: 0 0 14px rgba(99, 222, 132, 0.2);
+  --surface-inset-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.56);
+  --floating-panel-bg: rgba(255, 255, 255, 0.9);
+  --info-toast-bg: rgba(246, 245, 253, 0.96);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #0c0b15;
+  --color-panel: #1a1829;
+  --color-panel-strong: #25213a;
+  --color-panel-elevated: #2d2746;
+  --color-border: #4a416d;
+  --color-border-strong: #65588f;
+  --color-text: #f1f2fb;
+  --color-text-soft: #d2d1e8;
+  --color-text-muted: #9f9dbf;
+  --color-accent: #69e48a;
+  --color-accent-strong: #54d477;
+  --color-accent-alt: #a36af0;
+  --color-accent-foreground: #08110b;
+  --color-accent-border: rgba(105, 228, 138, 0.46);
+  --color-accent-glow: rgba(105, 228, 138, 0.26);
+  --color-danger: #d06aa9;
+  --color-danger-strong: #bb5897;
+  --color-danger-foreground: #24081a;
+  --color-danger-glow: rgba(208, 106, 169, 0.34);
+  --color-warning: #deb163;
+  --color-ring: #a174f4;
+  --color-status-ok-bg: rgba(105, 228, 138, 0.18);
+  --color-status-ok-border: rgba(105, 228, 138, 0.48);
+  --color-status-ok-text: #b8f0c8;
+  --color-status-warn-bg: rgba(222, 177, 99, 0.18);
+  --color-status-warn-border: rgba(222, 177, 99, 0.5);
+  --color-status-warn-text: #f7dfb6;
+  --color-status-danger-bg: rgba(208, 106, 169, 0.18);
+  --color-status-danger-border: rgba(208, 106, 169, 0.5);
+  --color-status-danger-text: #f3c5e0;
+  --surface-shadow: 0 16px 38px rgba(0, 0, 0, 0.4);
+  --bg-spot-1: rgba(105, 228, 138, 0.16);
+  --bg-spot-2: rgba(163, 106, 240, 0.2);
+  --bg-spot-3: rgba(222, 177, 99, 0.12);
+  --bg-grad-start: #131024;
+  --bg-grad-mid: #0c0b15;
+  --bg-grad-end: #17112b;
+  --grid-line: rgba(151, 139, 206, 0.1);
+  --overlay-top: rgba(105, 228, 138, 0.025);
+  --overlay-mid: rgba(163, 106, 240, 0.055);
+  --overlay-bottom: rgba(222, 177, 99, 0.035);
+  --selection-bg: rgba(105, 228, 138, 0.3);
+  --selection-text: #06110b;
+  --table-row-alt: rgba(37, 33, 58, 0.66);
+  --header-bg: rgba(13, 11, 27, 0.87);
+  --shell-glow-a: rgba(105, 228, 138, 0.2);
+  --shell-glow-b: rgba(163, 106, 240, 0.24);
+  --shell-glow-c: rgba(222, 177, 99, 0.14);
+  --nav-surface: rgba(26, 24, 41, 0.76);
+  --nav-active-border: rgba(105, 228, 138, 0.48);
+  --nav-active-bg: rgba(105, 228, 138, 0.2);
+  --nav-active-shadow: 0 0 14px rgba(105, 228, 138, 0.24);
+  --surface-inset-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  --floating-panel-bg: rgba(26, 24, 41, 0.92);
+  --info-toast-bg: rgba(45, 39, 70, 0.92);
 }
 
 * {
@@ -27,27 +130,59 @@ body {
 }
 
 body {
-  font-family: "Aptos", "Frutiger", "Segoe UI", "Trebuchet MS", sans-serif;
+  font-family: var(--font-display);
   color: var(--color-text);
-  background: radial-gradient(circle at 0 0, rgba(194, 170, 122, 0.14), transparent 35%),
-    radial-gradient(circle at 100% 0, rgba(21, 80, 94, 0.12), transparent 40%), var(--color-bg);
+  background:
+    radial-gradient(circle at 10% -10%, var(--bg-spot-1), transparent 42%),
+    radial-gradient(circle at 90% 0%, var(--bg-spot-2), transparent 40%),
+    radial-gradient(circle at 50% 125%, var(--bg-spot-3), transparent 38%),
+    linear-gradient(180deg, var(--bg-grad-start) 0%, var(--bg-grad-mid) 42%, var(--bg-grad-end) 100%);
+}
+
+body::before {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  opacity: 0.4;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+body::after {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    180deg,
+    var(--overlay-top) 0%,
+    var(--overlay-mid) 42%,
+    var(--overlay-bottom) 100%
+  );
 }
 
 h1,
 h2,
 h3 {
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
 }
 
 code,
 pre,
 kbd,
 .font-mono {
-  font-family: "IBM Plex Mono", "Fira Code", "Menlo", monospace;
+  font-family: var(--font-mono);
 }
 
 ::selection {
-  background: rgba(29, 96, 112, 0.2);
+  background: var(--selection-bg);
+  color: var(--selection-text);
 }
 
 .table-grid {
@@ -59,16 +194,17 @@ kbd,
   position: sticky;
   top: 0;
   z-index: 2;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(6px);
+  background: color-mix(in srgb, var(--color-panel-elevated) 92%, transparent);
+  backdrop-filter: blur(10px);
 }
 
 .table-grid tr:nth-child(even) td {
-  background: rgba(240, 244, 242, 0.45);
+  background: var(--table-row-alt);
 }
 
 .subtle-scroll {
   scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
 }
 
 .subtle-scroll::-webkit-scrollbar {
@@ -77,8 +213,47 @@ kbd,
 }
 
 .subtle-scroll::-webkit-scrollbar-thumb {
-  background: #bcc8c3;
+  background: var(--color-border-strong);
   border-radius: 999px;
-  border: 2px solid transparent;
+  border: 2px solid rgba(0, 0, 0, 0);
   background-clip: content-box;
+}
+
+.status-ok {
+  border-color: var(--color-status-ok-border);
+  background: var(--color-status-ok-bg);
+  color: var(--color-status-ok-text);
+}
+
+.status-warn {
+  border-color: var(--color-status-warn-border);
+  background: var(--color-status-warn-bg);
+  color: var(--color-status-warn-text);
+}
+
+.status-danger {
+  border-color: var(--color-status-danger-border);
+  background: var(--color-status-danger-bg);
+  color: var(--color-status-danger-text);
+}
+
+.animate-page-enter {
+  animation: page-enter 380ms cubic-bezier(0.2, 0.78, 0.14, 1) both;
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-page-enter {
+    animation: none;
+  }
 }

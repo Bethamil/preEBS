@@ -63,10 +63,10 @@ export function DeleteIconButton({
         title={buttonLabel}
         disabled={disabled}
         className={cn(
-          "inline-flex items-center justify-center rounded-lg shadow-[0_1px_2px_rgba(10,20,35,0.05)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-danger)] disabled:cursor-not-allowed disabled:opacity-55",
+          "inline-flex items-center justify-center rounded-lg shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-danger)] disabled:cursor-not-allowed disabled:opacity-55",
           isConfirming
-            ? "border border-[var(--color-danger)] bg-[var(--color-danger)] text-white shadow-[0_4px_12px_rgba(180,83,77,0.42)]"
-            : "border border-[var(--color-border)] bg-white text-[var(--color-text-soft)] hover:border-[var(--color-danger)] hover:bg-[var(--color-danger)] hover:text-white hover:shadow-[0_4px_12px_rgba(180,83,77,0.42)]",
+            ? "border border-[var(--color-danger)] bg-[var(--color-danger)] text-[var(--color-danger-foreground)] shadow-[0_10px_24px_var(--color-danger-glow)]"
+            : "border border-[var(--color-border)] bg-[var(--color-panel-strong)] text-[var(--color-text-soft)] hover:border-[var(--color-danger)] hover:bg-[var(--color-danger)] hover:text-[var(--color-danger-foreground)] hover:shadow-[0_10px_24px_var(--color-danger-glow)]",
           sizeStyles[size],
           className,
         )}
@@ -124,7 +124,7 @@ export function DeleteIconButton({
         )}
       </button>
       {isConfirming && (
-        <span className="pointer-events-none absolute right-full top-1/2 z-20 mr-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--color-danger)] bg-white px-2 py-0.5 text-[11px] font-semibold text-[var(--color-danger)] shadow-sm">
+        <span className="pointer-events-none absolute right-full top-1/2 z-20 mr-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--color-danger)] bg-[var(--color-panel)] px-2 py-0.5 text-[11px] font-semibold text-[var(--color-danger)] shadow-sm">
           Click again to delete
         </span>
       )}
