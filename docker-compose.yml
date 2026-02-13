@@ -1,0 +1,18 @@
+services:
+  preebs:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: preebs:latest
+    ports:
+      - "${PREEBS_HOST_PORT:-43117}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+    volumes:
+      - preebs-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  preebs-data:

@@ -45,6 +45,29 @@ Why this pattern:
 3. Open:
    - [http://localhost:3000](http://localhost:3000)
 
+## Production with Docker
+
+The repository includes a production-ready multi-stage `Dockerfile` and a `docker-compose.yml`.
+
+### Build and run with Docker
+
+1. Build the image:
+   - `docker build -t preebs:latest .`
+2. Run the container:
+   - `docker run -d --name preebs -p 43117:3000 -v preebs-data:/app/data --restart unless-stopped preebs:latest`
+
+### Build and run with Docker Compose
+
+1. Start in detached mode:
+   - `docker compose up -d --build`
+2. Stop:
+   - `docker compose down`
+
+By default, Docker Compose publishes the app on `http://localhost:43117`. To use a different host port:
+- `PREEBS_HOST_PORT=44001 docker compose up -d --build`
+
+The app persists its JSON database in `/app/data/preebs-db.json`. Mount `/app/data` to a volume in production to keep data across deploys/restarts.
+
 ## Data model (NoSQL)
 
 The JSON document database stores:

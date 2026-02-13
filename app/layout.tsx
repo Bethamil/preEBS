@@ -9,9 +9,9 @@ export const metadata: Metadata = {
   title: "PreEBS",
   description: "UX-first weekly timesheet tracking for EBS workflows.",
   icons: {
-    icon: "/logo.png",
-    shortcut: "/logo.png",
-    apple: "/logo.png",
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
   },
 };
 

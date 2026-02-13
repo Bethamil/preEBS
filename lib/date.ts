@@ -90,12 +90,10 @@ export function formatDateLabel(isoDate: IsoDateString): string {
   if (!date) {
     return isoDate;
   }
-  return new Intl.DateTimeFormat("en-CA", {
-    weekday: "short",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
+  const day = pad2(date.getDate());
+  const month = pad2(date.getMonth() + 1);
+  const year = date.getFullYear();
+  return `${day}-${month}-${year}`;
 }
 
 export function formatWeekRange(startIso: IsoDateString, endIso: IsoDateString): string {
