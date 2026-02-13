@@ -186,33 +186,15 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       const validCurrent = current.filter((projectId) =>
         projects.some((project) => project.id === projectId),
       );
-      if (validCurrent.length > 0) {
-        const unchanged =
-          validCurrent.length === current.length &&
-          validCurrent.every((projectId, index) => projectId === current[index]);
-        if (unchanged) {
-          return current;
-        }
-        return validCurrent;
+      const unchanged =
+        validCurrent.length === current.length &&
+        validCurrent.every((projectId, index) => projectId === current[index]);
+      if (unchanged) {
+        return current;
       }
-
-      const fromStorage =
-        typeof window !== "undefined"
-          ? window.localStorage.getItem(LAST_EDITED_PROJECT_STORAGE_KEY) ?? ""
-          : "";
-
-      if (fromStorage && projects.some((project) => project.id === fromStorage)) {
-        return current.length === 1 && current[0] === fromStorage ? current : [fromStorage];
-      }
-
-      const fallbackFromRows = rows[rows.length - 1]?.projectId;
-      if (fallbackFromRows && projects.some((project) => project.id === fallbackFromRows)) {
-        return current.length === 1 && current[0] === fallbackFromRows ? current : [fallbackFromRows];
-      }
-
-      return current.length === 1 && current[0] === projects[0].id ? current : [projects[0].id];
+      return validCurrent;
     });
-  }, [projects, rows]);
+  }, [projects]);
 
   const defaultSelection = useMemo(() => {
     const fallbackProject = projects[0];
@@ -311,14 +293,29 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     });
   }, [rows, rowSearch, nameMaps]);
 
+  const hasRowSearch = rowSearch.trim().length > 0;
+  const autoExpandedProjectIds = useMemo(() => {
+    if (!hasRowSearch) {
+      return [] as string[];
+    }
+    return Array.from(new Set(visibleRows.map((row) => row.projectId)));
+  }, [hasRowSearch, visibleRows]);
+  const effectiveOpenProjectIds = useMemo(() => {
+    if (!hasRowSearch) {
+      return openProjectIds;
+    }
+
+    return Array.from(new Set([...openProjectIds, ...autoExpandedProjectIds]));
+  }, [hasRowSearch, openProjectIds, autoExpandedProjectIds]);
+
   const openVisibleRows = useMemo(() => {
-    if (openProjectIds.length === 0) {
+    if (effectiveOpenProjectIds.length === 0) {
       return [];
     }
 
-    const openProjects = new Set(openProjectIds);
+    const openProjects = new Set(effectiveOpenProjectIds);
     return visibleRows.filter((row) => openProjects.has(row.projectId));
-  }, [visibleRows, openProjectIds]);
+  }, [visibleRows, effectiveOpenProjectIds]);
 
   const totalsByDay = useMemo(
     () =>
@@ -1002,7 +999,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       <div className="space-y-3">
         {projectSummaries.map((summary) => {
           const { project, accentColor, projectRows, visibleProjectRows, totalsByDay: projectTotalsByDay, total, taskCount, status } = summary;
-          const isExpanded = openProjectIds.includes(project.id);
+          const isExpanded = effectiveOpenProjectIds.includes(project.id);
           const rowCount = projectRows.length;
           const visibleRowCount = visibleProjectRows.length;
 
@@ -1040,7 +1037,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                   <p className="mt-1 text-xs text-[var(--color-text-muted)]">
                     {formatHours(total)}h total · {rowCount} row{rowCount === 1 ? "" : "s"} · {taskCount} task
                     {taskCount === 1 ? "" : "s"}
-                    {rowSearch.trim().length > 0 && ` · Showing ${visibleRowCount}`}
+                    {hasRowSearch && ` · Showing ${visibleRowCount}`}
                   </p>
                 </button>
 
