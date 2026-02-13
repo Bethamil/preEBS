@@ -16,6 +16,7 @@ import {
 } from "@/lib/constants";
 import {
   formatDateLabel,
+  getIsoWeekNumber,
   formatWeekRange,
   getWeekDates,
   nextWeekStart,
@@ -23,6 +24,18 @@ import {
 } from "@/lib/date";
 import type { RecentCombo, UserConfig, WeekDocument, WeekRowInput } from "@/lib/types";
 import { clampHours, cn, formatHours, parseNumberInput } from "@/lib/utils";
+
+const PROJECT_ACCENT_COLORS = [
+  "#1D6070",
+  "#B8862B",
+  "#4B7A4F",
+  "#7D5678",
+  "#2D6A8A",
+  "#8C5A2E",
+  "#6A7C2C",
+] as const;
+
+const LAST_EDITED_PROJECT_STORAGE_KEY = "preebs:last-edited-project";
 
 interface WeekEditorResponse {
   config: UserConfig;
@@ -49,7 +62,36 @@ interface AddRowOptions {
   fillWholeWeek?: boolean;
 }
 
+interface ComboOption extends RecentCombo {
+  label: string;
+  searchText: string;
+  isRecent: boolean;
+}
+
 type SaveState = "idle" | "saving" | "saved" | "error";
+
+function comboKey(projectId: string, taskId: string, hourTypeId: string): string {
+  return `${projectId}:${taskId}:${hourTypeId}`;
+}
+
+function comboLabel(
+  combo: { projectName: string; taskName: string; hourTypeName: string },
+  includeHourType: boolean,
+): string {
+  if (!includeHourType) {
+    return `${combo.projectName} / ${combo.taskName}`;
+  }
+  return `${combo.projectName} / ${combo.taskName} / ${combo.hourTypeName}`;
+}
+
+function iconButtonClass(destructive = false): string {
+  return cn(
+    "inline-flex h-7 w-7 items-center justify-center rounded-md border text-[var(--color-text-muted)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]",
+    destructive
+      ? "border-[rgba(180,83,77,0.3)] hover:bg-[rgba(180,83,77,0.12)] hover:text-[var(--color-danger)]"
+      : "border-[var(--color-border)] hover:bg-[var(--color-panel-strong)] hover:text-[var(--color-text)]",
+  );
+}
 
 function toLocalRows(week: WeekDocument): LocalRow[] {
   return week.rows.map((row) => ({
@@ -89,21 +131,29 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   const [recentCombos, setRecentCombos] = useState<RecentCombo[]>([]);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<string>("all");
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState("");
   const [focusedDayIndex, setFocusedDayIndex] = useState<number | null>(0);
+  const [focusedRowId, setFocusedRowId] = useState<string | null>(null);
   const [rowSearch, setRowSearch] = useState("");
+  const [expandedProjectId, setExpandedProjectId] = useState("");
+  const [compactMode, setCompactMode] = useState(false);
+  const [openActionMenuRowId, setOpenActionMenuRowId] = useState<string | null>(null);
 
   const [quickProjectId, setQuickProjectId] = useState("");
   const [quickTaskId, setQuickTaskId] = useState("");
   const [quickHourTypeId, setQuickHourTypeId] = useState("");
   const [quickDayIndex, setQuickDayIndex] = useState(0);
   const [quickHours, setQuickHours] = useState("8");
+  const [quickComboSearch, setQuickComboSearch] = useState("");
 
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
 
   const weekDates = useMemo(
     () => getWeekDates(weekStartDate as WeekDocument["weekStartDate"]),
+    [weekStartDate],
+  );
+  const isoWeek = useMemo(
+    () => getIsoWeekNumber(weekStartDate as WeekDocument["weekStartDate"]),
     [weekStartDate],
   );
 
@@ -130,11 +180,41 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
 
   const projects = config?.projects ?? [];
 
-  useEffect(() => {
-    if (!projects.some((project) => project.id === activeTab) && activeTab !== "all") {
-      setActiveTab("all");
+  const rememberEditedProject = (projectId: string) => {
+    setExpandedProjectId(projectId);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(LAST_EDITED_PROJECT_STORAGE_KEY, projectId);
     }
-  }, [projects, activeTab]);
+  };
+
+  useEffect(() => {
+    if (projects.length === 0) {
+      setExpandedProjectId("");
+      return;
+    }
+
+    setExpandedProjectId((current) => {
+      if (current && projects.some((project) => project.id === current)) {
+        return current;
+      }
+
+      const fromStorage =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem(LAST_EDITED_PROJECT_STORAGE_KEY) ?? ""
+          : "";
+
+      if (fromStorage && projects.some((project) => project.id === fromStorage)) {
+        return fromStorage;
+      }
+
+      const fallbackFromRows = rows[rows.length - 1]?.projectId;
+      if (fallbackFromRows && projects.some((project) => project.id === fallbackFromRows)) {
+        return fallbackFromRows;
+      }
+
+      return projects[0].id;
+    });
+  }, [projects, rows]);
 
   const defaultSelection = useMemo(() => {
     const fallbackProject = projects[0];
@@ -194,11 +274,38 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     }
   }, [quickHourTypes, quickHourTypeId]);
 
+  const shouldShowHourType = useMemo(() => {
+    const normalizedHourTypeNames = new Set<string>();
+
+    for (const project of projects) {
+      for (const task of project.tasks) {
+        if (task.hourTypes.length !== 1) {
+          return true;
+        }
+        for (const hourType of task.hourTypes) {
+          normalizedHourTypeNames.add(hourType.name.trim().toLowerCase());
+        }
+      }
+    }
+
+    return normalizedHourTypeNames.size > 1;
+  }, [projects]);
+
   useEffect(() => {
     const listener = (event: KeyboardEvent) => {
       if (event.altKey && event.key.toLowerCase() === "n") {
         event.preventDefault();
         addRow();
+      }
+
+      if (event.altKey && event.key.toLowerCase() === "d" && focusedRowId) {
+        event.preventDefault();
+        duplicateRow(focusedRowId);
+      }
+
+      if (event.altKey && event.key.toLowerCase() === "f" && focusedRowId) {
+        event.preventDefault();
+        fillPreviousValues(focusedRowId);
       }
 
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
@@ -210,7 +317,23 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     window.addEventListener("keydown", listener);
     return () => window.removeEventListener("keydown", listener);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, config, activeTab]);
+  }, [rows, config, focusedRowId]);
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) {
+        return;
+      }
+      if (target.closest("[data-row-action-menu]")) {
+        return;
+      }
+      setOpenActionMenuRowId(null);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, []);
 
   const snapshot = useMemo(() => serializeRows(rows), [rows]);
 
@@ -246,27 +369,30 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     return { projectMap, taskMap, hourTypeMap };
   }, [projects]);
 
-  const tabRows = useMemo(() => {
-    if (activeTab === "all") {
-      return rows;
-    }
-    return rows.filter((row) => row.projectId === activeTab);
-  }, [rows, activeTab]);
-
   const visibleRows = useMemo(() => {
     const query = rowSearch.trim().toLowerCase();
     if (!query) {
-      return tabRows;
+      return rows;
     }
 
-    return tabRows.filter((row) => {
+    const tokens = query.split(/\s+/).filter(Boolean);
+
+    return rows.filter((row) => {
       const projectName = nameMaps.projectMap.get(row.projectId) ?? "";
       const taskName = nameMaps.taskMap.get(row.taskId) ?? "";
       const hourTypeName = nameMaps.hourTypeMap.get(row.hourTypeId) ?? "";
       const haystack = `${projectName} ${taskName} ${hourTypeName}`.toLowerCase();
-      return haystack.includes(query);
+      return tokens.every((token) => haystack.includes(token));
     });
-  }, [tabRows, rowSearch, nameMaps]);
+  }, [rows, rowSearch, nameMaps]);
+
+  const expandedVisibleRows = useMemo(() => {
+    if (!expandedProjectId) {
+      return [];
+    }
+
+    return visibleRows.filter((row) => row.projectId === expandedProjectId);
+  }, [visibleRows, expandedProjectId]);
 
   const totalsByDay = useMemo(
     () =>
@@ -276,6 +402,8 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     [rows],
   );
 
+  const weekTotal = useMemo(() => totalsByDay.reduce((sum, value) => sum + value, 0), [totalsByDay]);
+
   const visibleTotalsByDay = useMemo(
     () =>
       Array.from({ length: WEEKDAY_COUNT }, (_, dayIndex) =>
@@ -284,46 +412,106 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     [visibleRows],
   );
 
-  const weekTotal = useMemo(() => totalsByDay.reduce((sum, value) => sum + value, 0), [totalsByDay]);
   const visibleWeekTotal = useMemo(
     () => visibleTotalsByDay.reduce((sum, value) => sum + value, 0),
     [visibleTotalsByDay],
   );
-  const groupedVisibleRows = useMemo(() => {
-    return projects
-      .map((project) => ({
+
+  const projectSummaries = useMemo(() => {
+    const summaries = [] as Array<{
+      project: UserConfig["projects"][number];
+      accentColor: string;
+      projectRows: LocalRow[];
+      visibleProjectRows: LocalRow[];
+      totalsByDay: number[];
+      total: number;
+      taskCount: number;
+      status: "ok" | "warning";
+    }>;
+
+    for (let index = 0; index < projects.length; index += 1) {
+      const project = projects[index];
+      const projectRows = rows.filter((row) => row.projectId === project.id);
+      const visibleProjectRows = visibleRows.filter((row) => row.projectId === project.id);
+      const totals = Array.from({ length: WEEKDAY_COUNT }, (_, dayIndex) =>
+        projectRows.reduce((sum, row) => sum + (row.hours[dayIndex] ?? 0), 0),
+      );
+      const total = totals.reduce((sum, value) => sum + value, 0);
+      const taskCount = new Set(projectRows.map((row) => row.taskId)).size;
+
+      summaries.push({
         project,
-        rows: visibleRows.filter((row) => row.projectId === project.id),
-      }))
-      .filter((group) => group.rows.length > 0);
-  }, [projects, visibleRows]);
-  const projectOverview = useMemo(() => {
-    return projects
-      .map((project) => {
-        const projectRows = rows.filter((row) => row.projectId === project.id);
-        if (projectRows.length === 0) {
-          return null;
+        accentColor: PROJECT_ACCENT_COLORS[index % PROJECT_ACCENT_COLORS.length],
+        projectRows,
+        visibleProjectRows,
+        totalsByDay: totals,
+        total,
+        taskCount,
+        status: total > (config?.maxHoursPerWeek ?? Number.MAX_SAFE_INTEGER) ? "warning" : "ok",
+      });
+    }
+
+    return summaries;
+  }, [projects, rows, visibleRows, config?.maxHoursPerWeek]);
+
+  const comboOptions = useMemo(() => {
+    const recentKeys = new Set(
+      recentCombos.map((combo) => comboKey(combo.projectId, combo.taskId, combo.hourTypeId)),
+    );
+
+    const options: ComboOption[] = [];
+
+    for (const project of projects) {
+      for (const task of project.tasks) {
+        for (const hourType of task.hourTypes) {
+          const isRecent = recentKeys.has(comboKey(project.id, task.id, hourType.id));
+          const option: ComboOption = {
+            projectId: project.id,
+            projectName: project.name,
+            taskId: task.id,
+            taskName: task.name,
+            hourTypeId: hourType.id,
+            hourTypeName: hourType.name,
+            label: comboLabel({
+              projectName: project.name,
+              taskName: task.name,
+              hourTypeName: hourType.name,
+            }, shouldShowHourType),
+            searchText: shouldShowHourType
+              ? `${project.name} ${task.name} ${hourType.name}`.toLowerCase()
+              : `${project.name} ${task.name}`.toLowerCase(),
+            isRecent,
+          };
+          options.push(option);
         }
+      }
+    }
 
-        const total = projectRows.reduce(
-          (sum, row) => sum + row.hours.reduce((rowSum, hours) => rowSum + hours, 0),
-          0,
-        );
+    return options.sort((left, right) => {
+      if (left.isRecent !== right.isRecent) {
+        return left.isRecent ? -1 : 1;
+      }
+      return left.label.localeCompare(right.label);
+    });
+  }, [projects, recentCombos, shouldShowHourType]);
 
-        return {
-          projectId: project.id,
-          projectName: project.name,
-          rowCount: projectRows.length,
-          total,
-        };
-      })
-      .filter((project): project is NonNullable<typeof project> => Boolean(project));
-  }, [projects, rows]);
+  const quickComboMatches = useMemo(() => {
+    const query = quickComboSearch.trim().toLowerCase();
+    if (!query) {
+      return comboOptions.slice(0, 8);
+    }
+
+    const tokens = query.split(/\s+/).filter(Boolean);
+    return comboOptions
+      .filter((option) => tokens.every((token) => option.searchText.includes(token)))
+      .slice(0, 8);
+  }, [comboOptions, quickComboSearch]);
 
   const exceedsMax = config ? weekTotal > config.maxHoursPerWeek : false;
   const utilizationPercent = config
     ? Math.min(100, Math.round((weekTotal / Math.max(config.maxHoursPerWeek, 1)) * 100))
     : 0;
+  const saveBlocked = Boolean(config?.blockOnMaxHoursExceed && exceedsMax);
 
   const ensureRowConsistency = (row: LocalRow): LocalRow => {
     const project = projects.find((item) => item.id === row.projectId) ?? projects[0];
@@ -347,13 +535,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       return;
     }
 
-    const tabProject = activeTab !== "all" ? projects.find((project) => project.id === activeTab) : undefined;
-
-    const baseProjectId =
-      options?.overrideProjectId ??
-      options?.combo?.projectId ??
-      tabProject?.id ??
-      defaultSelection.projectId;
+    const baseProjectId = options?.overrideProjectId ?? options?.combo?.projectId ?? defaultSelection.projectId;
 
     const project = projects.find((item) => item.id === baseProjectId) ?? projects[0];
     const task =
@@ -394,6 +576,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       hours,
     };
 
+    rememberEditedProject(project.id);
     setRows((current) => [...current, ensureRowConsistency(nextRow)]);
 
     const focusDay = options?.fillWholeWeek ? 0 : presetDayIndex;
@@ -402,10 +585,14 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       const input = inputRefs.current.get(key);
       input?.focus();
       input?.select();
+      setFocusedRowId(nextRow.id);
     }, 10);
   };
 
-  const updateRow = (rowId: string, updater: (row: LocalRow) => LocalRow) => {
+  const updateRow = (rowId: string, updater: (row: LocalRow) => LocalRow, projectHint?: string) => {
+    if (projectHint) {
+      rememberEditedProject(projectHint);
+    }
     setRows((current) => current.map((row) => (row.id === rowId ? ensureRowConsistency(updater(row)) : row)));
   };
 
@@ -414,6 +601,8 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     if (!confirmed) {
       return;
     }
+
+    setOpenActionMenuRowId(null);
     setRows((current) => current.filter((row) => row.id !== rowId));
   };
 
@@ -422,11 +611,15 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     if (!source) {
       return;
     }
+
     const duplicate = { ...source, id: crypto.randomUUID() };
     const sourceIndex = rows.findIndex((row) => row.id === rowId);
     const next = [...rows];
     next.splice(sourceIndex + 1, 0, duplicate);
+
+    rememberEditedProject(source.projectId);
     setRows(next);
+    setOpenActionMenuRowId(null);
     pushToast("Row duplicated.", "info");
   };
 
@@ -444,27 +637,52 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       return;
     }
 
-    updateRow(rowId, (current) => ({
-      ...current,
-      hours: Array.from({ length: WEEKDAY_COUNT }, () => sourceHours),
-    }));
+    updateRow(
+      rowId,
+      (current) => ({
+        ...current,
+        hours: Array.from({ length: WEEKDAY_COUNT }, () => sourceHours),
+      }),
+      row.projectId,
+    );
+  };
+
+  const fillPreviousValues = (rowId: string) => {
+    const rowIndex = rows.findIndex((row) => row.id === rowId);
+    if (rowIndex <= 0) {
+      pushToast("No previous row to copy from.", "info");
+      return;
+    }
+
+    const previous = rows[rowIndex - 1];
+    const current = rows[rowIndex];
+    if (!previous || !current) {
+      return;
+    }
+
+    updateRow(
+      rowId,
+      (row) => ({
+        ...row,
+        taskId: previous.taskId,
+        hourTypeId: previous.hourTypeId,
+        hours: [...previous.hours],
+      }),
+      current.projectId,
+    );
+
+    setOpenActionMenuRowId(null);
+    pushToast("Filled from previous row.", "info");
   };
 
   const clearDay = (dayIndex: number) => {
-    const confirmed = window.confirm(
-      activeTab === "all"
-        ? `Clear all entries for ${WEEKDAY_LABELS[dayIndex]}?`
-        : `Clear ${WEEKDAY_LABELS[dayIndex]} for this project tab?`,
-    );
+    const confirmed = window.confirm(`Clear all entries for ${WEEKDAY_LABELS[dayIndex]}?`);
     if (!confirmed) {
       return;
     }
 
     setRows((current) =>
       current.map((row) => {
-        if (activeTab !== "all" && row.projectId !== activeTab) {
-          return row;
-        }
         const hours = [...row.hours];
         hours[dayIndex] = 0;
         return { ...row, hours };
@@ -475,6 +693,12 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
 
   const save = async () => {
     if (!config) {
+      return;
+    }
+
+    if (config.blockOnMaxHoursExceed && exceedsMax) {
+      setSaveState("error");
+      pushToast("Reduce hours before saving. This week exceeds your max.", "error");
       return;
     }
 
@@ -554,13 +778,30 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     });
   };
 
-  const visibleRowIds = visibleRows.map((row) => row.id);
+  const quickAddFromCombo = (combo: ComboOption) => {
+    setQuickProjectId(combo.projectId);
+    setQuickTaskId(combo.taskId);
+    setQuickHourTypeId(combo.hourTypeId);
+    setQuickComboSearch(combo.label);
+
+    addRow({
+      overrideProjectId: combo.projectId,
+      overrideTaskId: combo.taskId,
+      overrideHourTypeId: combo.hourTypeId,
+      presetDayIndex: quickDayIndex,
+      presetHours: clampHours(parseNumberInput(quickHours)),
+      fillWholeWeek: false,
+    });
+  };
+
+  const visibleRowIds = expandedVisibleRows.map((row) => row.id);
 
   const focusCell = (rowId: string, dayIndex: number) => {
     const key = `${rowId}:${dayIndex}`;
     const input = inputRefs.current.get(key);
     input?.focus();
     input?.select();
+    setFocusedRowId(rowId);
   };
 
   const handleGridKeyDown = (
@@ -605,7 +846,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   };
 
   if (loading || !config) {
-    return <p className="text-sm text-[var(--color-text-muted)]">Loading week editor…</p>;
+    return <p className="text-sm text-[var(--color-text-muted)]">Loading week editor...</p>;
   }
 
   if (config.projects.length === 0) {
@@ -624,96 +865,140 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   }
 
   return (
-    <section className="space-y-5">
-      <Card className="overflow-hidden">
-        <div className="bg-gradient-to-r from-[rgba(29,96,112,0.09)] via-[rgba(255,255,255,0.95)] to-[rgba(194,170,122,0.12)] p-5 sm:p-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)]">
-                Week Entry
-              </p>
-              <h1 className="mt-1 text-3xl font-semibold tracking-tight">{formatHours(weekTotal)}h logged</h1>
-              <p className="mt-1 text-sm text-[var(--color-text-muted)]">
-                {formatWeekRange(
-                  weekStartDate as WeekDocument["weekStartDate"],
-                  (weekDates[4] ?? weekStartDate) as WeekDocument["weekStartDate"],
-                )}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Link href={`/week/${previousWeekStart(weekStartDate as WeekDocument["weekStartDate"])}`}>
-                <Button variant="secondary" size="sm">
-                  Previous Week
-                </Button>
-              </Link>
-              <Link href={`/week/${nextWeekStart(weekStartDate as WeekDocument["weekStartDate"])}`}>
-                <Button variant="secondary" size="sm">
-                  Next Week
-                </Button>
-              </Link>
-              <Button variant="secondary" size="sm" onClick={copyPrevious}>
-                Copy Previous
-              </Button>
-              <Button variant="ghost" size="sm" onClick={exportJson}>
-                Export JSON
-              </Button>
-              <Button onClick={save} size="sm" disabled={saveState === "saving"}>
-                {saveState === "saving" ? "Saving…" : "Save"}
-              </Button>
+    <section className="space-y-4 pb-28">
+      <Card className="p-4 sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)]">
+              Week Entry
+            </p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
+              {formatWeekRange(
+                weekStartDate as WeekDocument["weekStartDate"],
+                (weekDates[4] ?? weekStartDate) as WeekDocument["weekStartDate"],
+              )}
+            </h1>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-[var(--color-text-muted)]">
+              {isoWeek && (
+                <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-panel-strong)] px-2 py-0.5 text-xs font-semibold text-[var(--color-text-soft)]">
+                  Week {isoWeek.weekNumber}
+                </span>
+              )}
+              <span>
+                {rows.length} row{rows.length === 1 ? "" : "s"} total
+              </span>
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 lg:grid-cols-[1.2fr_1fr_1fr]">
-            <div className="rounded-2xl border border-[var(--color-border)] bg-white/90 px-4 py-3">
-              <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-                <span>Weekly Capacity</span>
-                <span>{utilizationPercent}%</span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-[var(--color-panel-strong)]">
-                <div
-                  className={cn(
-                    "h-full rounded-full transition-all",
-                    exceedsMax ? "bg-[var(--color-warning)]" : "bg-[var(--color-accent)]",
-                  )}
-                  style={{ width: `${utilizationPercent}%` }}
-                />
-              </div>
-              <p className="mt-2 text-sm text-[var(--color-text-soft)]">
-                {formatHours(weekTotal)}h of {formatHours(config.maxHoursPerWeek)}h
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-[var(--color-border)] bg-white/90 px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.08em] text-[var(--color-text-muted)]">Save Status</p>
-              <p className="mt-1 text-xl font-semibold capitalize">{saveState}</p>
-              <p className="mt-1 text-xs text-[var(--color-text-muted)]">Auto-save after edits, or Ctrl/Cmd+S.</p>
-            </div>
-
-            <div className="rounded-2xl border border-[var(--color-border)] bg-white/90 px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.08em] text-[var(--color-text-muted)]">Quick Notes</p>
-              <p className="mt-1 text-sm text-[var(--color-text-soft)]">
-                Alt+N adds a row. Focus a day, type one cell, then Fill Week for repetitive work.
-              </p>
-            </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href={`/week/${previousWeekStart(weekStartDate as WeekDocument["weekStartDate"])}`}>
+              <Button variant="secondary" size="sm">
+                Previous Week
+              </Button>
+            </Link>
+            <Link href={`/week/${nextWeekStart(weekStartDate as WeekDocument["weekStartDate"])}`}>
+              <Button variant="secondary" size="sm">
+                Next Week
+              </Button>
+            </Link>
+            <Button variant="secondary" size="sm" onClick={copyPrevious}>
+              Copy Previous
+            </Button>
+            <Button variant="ghost" size="sm" onClick={exportJson}>
+              Export JSON
+            </Button>
           </div>
-
-          {exceedsMax && (
-            <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              Week total exceeds configured max ({formatHours(config.maxHoursPerWeek)}h).{" "}
-              {config.blockOnMaxHoursExceed
-                ? "Saving is blocked until hours are reduced."
-                : "You can still save if this week is exceptional."}
-            </div>
-          )}
         </div>
+
+        {exceedsMax && (
+          <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Week total exceeds configured max ({formatHours(config.maxHoursPerWeek)}h).
+            {config.blockOnMaxHoursExceed
+              ? " Saving is blocked until hours are reduced."
+              : " Saving remains allowed for exceptional weeks."}
+          </div>
+        )}
       </Card>
 
       <Card className="p-4 sm:p-5">
-        <div className="grid gap-3 lg:grid-cols-[1.2fr_1.2fr_1.2fr_0.8fr_0.6fr_auto_auto]">
+        <div className="grid gap-4 lg:grid-cols-[1.7fr_1fr]">
+          <div>
+            <label className="space-y-1">
+              <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+                Quick Add Search
+              </span>
+              <Input
+                value={quickComboSearch}
+                onChange={(event) => setQuickComboSearch(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") {
+                    return;
+                  }
+                  event.preventDefault();
+                  const firstMatch = quickComboMatches[0];
+                  if (!firstMatch) {
+                    pushToast("No matching combo found.", "info");
+                    return;
+                  }
+                  quickAddFromCombo(firstMatch);
+                }}
+                placeholder={
+                  shouldShowHourType
+                    ? "Type project, task, or hour type, then press Enter"
+                    : "Type project or task, then press Enter"
+                }
+              />
+            </label>
+
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {quickComboMatches.slice(0, compactMode ? 4 : 6).map((combo) => (
+                <button
+                  key={comboKey(combo.projectId, combo.taskId, combo.hourTypeId)}
+                  type="button"
+                  className="inline-flex max-w-full items-center gap-1 rounded-full border border-[var(--color-border)] bg-white px-2.5 py-1 text-xs text-[var(--color-text-soft)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+                  onClick={() => quickAddFromCombo(combo)}
+                  title={combo.label}
+                >
+                  {combo.isRecent && (
+                    <span className="rounded-full bg-[var(--color-panel-strong)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+                      Recent
+                    </span>
+                  )}
+                  <span className="truncate">{combo.label}</span>
+                </button>
+              ))}
+              {quickComboMatches.length === 0 && (
+                <p className="text-xs text-[var(--color-text-muted)]">No combo matches this search.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-panel-strong)] p-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+              Keyboard
+            </p>
+            <p className="text-xs text-[var(--color-text-soft)]">Alt+N Add row</p>
+            <p className="text-xs text-[var(--color-text-soft)]">Alt+D Duplicate focused row</p>
+            <p className="text-xs text-[var(--color-text-soft)]">Alt+F Fill previous values</p>
+            <p className="text-xs text-[var(--color-text-soft)]">Ctrl/Cmd+S Save</p>
+          </div>
+        </div>
+
+        <div
+          className={cn(
+            "mt-4 grid gap-2 sm:grid-cols-2",
+            shouldShowHourType
+              ? "lg:grid-cols-[1.15fr_1.15fr_1.15fr_0.8fr_0.65fr_auto_auto_auto]"
+              : "lg:grid-cols-[1.25fr_1.25fr_0.8fr_0.65fr_auto_auto_auto]",
+          )}
+        >
           <label className="space-y-1">
             <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">Project</span>
-            <Select value={quickProjectId} onChange={(event) => setQuickProjectId(event.target.value)}>
+            <Select
+              value={quickProjectId}
+              className="h-9 rounded-lg text-xs"
+              onChange={(event) => setQuickProjectId(event.target.value)}
+            >
               {projects.map((project) => (
                 <option key={project.id} value={project.id}>
                   {project.name}
@@ -724,7 +1009,11 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
 
           <label className="space-y-1">
             <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">Task</span>
-            <Select value={quickTaskId} onChange={(event) => setQuickTaskId(event.target.value)}>
+            <Select
+              value={quickTaskId}
+              className="h-9 rounded-lg text-xs"
+              onChange={(event) => setQuickTaskId(event.target.value)}
+            >
               {quickTasks.map((task) => (
                 <option key={task.id} value={task.id}>
                   {task.name}
@@ -733,21 +1022,28 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
             </Select>
           </label>
 
-          <label className="space-y-1">
-            <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">Hour Type</span>
-            <Select value={quickHourTypeId} onChange={(event) => setQuickHourTypeId(event.target.value)}>
-              {quickHourTypes.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
-              ))}
-            </Select>
-          </label>
+          {shouldShowHourType && (
+            <label className="space-y-1">
+              <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">Hour Type</span>
+              <Select
+                value={quickHourTypeId}
+                className="h-9 rounded-lg text-xs"
+                onChange={(event) => setQuickHourTypeId(event.target.value)}
+              >
+                {quickHourTypes.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.name}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          )}
 
           <label className="space-y-1">
             <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">Day</span>
             <Select
               value={String(quickDayIndex)}
+              className="h-9 rounded-lg text-xs"
               onChange={(event) => setQuickDayIndex(Number(event.target.value))}
             >
               {WEEKDAY_LABELS.map((label, index) => (
@@ -760,374 +1056,490 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
 
           <label className="space-y-1">
             <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">Hours</span>
-            <Input value={quickHours} onChange={(event) => setQuickHours(event.target.value)} inputMode="decimal" />
+            <Input
+              value={quickHours}
+              className="h-9 rounded-lg text-xs"
+              onChange={(event) => setQuickHours(event.target.value)}
+              inputMode="decimal"
+            />
           </label>
 
           <div className="self-end">
-            <Button className="w-full" onClick={() => quickAdd(false)}>
+            <Button className="w-full" size="sm" onClick={() => quickAdd(false)}>
               Add Row
             </Button>
           </div>
 
           <div className="self-end">
-            <Button variant="secondary" className="w-full" onClick={() => quickAdd(true)}>
-              Add + Fill Week
+            <Button variant="secondary" className="w-full" size="sm" onClick={() => quickAdd(true)}>
+              Add + Fill
+            </Button>
+          </div>
+
+          <div className="self-end">
+            <Button
+              variant="secondary"
+              size="sm"
+              className="w-full"
+              onClick={() => setCompactMode((current) => !current)}
+            >
+              {compactMode ? "Comfort" : "Compact"}
             </Button>
           </div>
         </div>
       </Card>
 
       <Card className="p-4 sm:p-5">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant={activeTab === "all" ? "primary" : "secondary"}
-              size="sm"
-              onClick={() => setActiveTab("all")}
-            >
-              All Projects
-            </Button>
-            {config.projects.map((project) => (
-              <Button
-                key={project.id}
-                variant={activeTab === project.id ? "primary" : "secondary"}
-                size="sm"
-                onClick={() => setActiveTab(project.id)}
-              >
-                {project.name}
-              </Button>
-            ))}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="w-full max-w-md">
+            <Input
+              placeholder={
+                shouldShowHourType
+                  ? "Filter rows by project/task/hour type"
+                  : "Filter rows by project/task"
+              }
+              value={rowSearch}
+              onChange={(event) => setRowSearch(event.target.value)}
+            />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="w-64">
-              <Input
-                placeholder="Filter rows by project/task/hour type"
-                value={rowSearch}
-                onChange={(event) => setRowSearch(event.target.value)}
-              />
-            </div>
-            <Button size="sm" onClick={() => addRow()}>
-              Add Row
-            </Button>
-          </div>
+          <Button size="sm" onClick={() => addRow()}>
+            Add Row
+          </Button>
         </div>
 
-        <div className="mb-4 grid gap-2 md:grid-cols-5">
-          {WEEKDAY_LABELS.map((label, index) => {
-            const dayTarget = config.maxHoursPerWeek / 5;
-            const total = totalsByDay[index] ?? 0;
-            const overTarget = total > dayTarget;
-            const selected = focusedDayIndex === index;
-
-            return (
-              <div
-                key={label}
-                className={cn(
-                  "rounded-xl border px-3 py-3 text-left transition",
-                  selected
-                    ? "border-[var(--color-accent)] bg-[rgba(29,96,112,0.08)]"
-                    : "border-[var(--color-border)] bg-white hover:bg-[var(--color-panel-strong)]",
-                )}
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          {WEEKDAY_LABELS.map((label, index) => (
+            <div
+              key={label}
+              className={cn(
+                "flex items-center justify-between rounded-xl border px-2.5 py-2",
+                focusedDayIndex === index
+                  ? "border-[var(--color-accent)] bg-[rgba(29,96,112,0.08)]"
+                  : "border-[var(--color-border)] bg-white",
+              )}
+            >
+              <button
+                type="button"
+                className="text-left"
+                onClick={() => setFocusedDayIndex(index)}
+                aria-label={`Focus ${label}`}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs uppercase tracking-[0.08em] text-[var(--color-text-muted)]">{label}</p>
-                  <div className="flex items-center gap-1.5">
-                    <p
-                      className={cn(
-                        "text-xs font-semibold",
-                        overTarget ? "text-[var(--color-warning)]" : "text-[var(--color-text-muted)]",
-                      )}
-                    >
-                      {formatHours(total)}h
-                    </p>
-                    <button
-                      type="button"
-                      className="rounded-md border border-[var(--color-border)] px-1.5 py-0.5 text-[10px] uppercase text-[var(--color-text-muted)] transition hover:bg-[var(--color-panel-strong)]"
-                      onClick={() => clearDay(index)}
-                      aria-label={`Clear ${label}`}
-                    >
-                      Clear
-                    </button>
-                  </div>
-                </div>
-                <p className="mt-1 text-xs text-[var(--color-text-muted)]">{formatDateLabel(weekDates[index])}</p>
+                <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">{label}</p>
+                <p className="text-xs font-semibold">{formatHours(totalsByDay[index])}h</p>
+                <p className="text-[11px] text-[var(--color-text-muted)]">{formatDateLabel(weekDates[index])}</p>
+              </button>
+              <button
+                type="button"
+                className="rounded-md border border-[var(--color-border)] px-2 py-1 text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-muted)] transition hover:bg-[var(--color-panel-strong)]"
+                onClick={() => clearDay(index)}
+                aria-label={`Clear ${label}`}
+                title={`Clear ${label}`}
+              >
+                Clear
+              </button>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <div className="space-y-3">
+        {projectSummaries.map((summary) => {
+          const { project, accentColor, projectRows, visibleProjectRows, totalsByDay: projectTotalsByDay, total, taskCount, status } = summary;
+          const isExpanded = expandedProjectId === project.id;
+          const rowCount = projectRows.length;
+          const visibleRowCount = visibleProjectRows.length;
+
+          return (
+            <section
+              key={project.id}
+              className="rounded-2xl border border-[var(--color-border)] bg-white"
+              style={{ borderLeftColor: accentColor, borderLeftWidth: "4px" }}
+            >
+              <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] px-3 py-3">
                 <button
                   type="button"
-                  className="mt-2 inline-flex rounded-md bg-[var(--color-panel-strong)] px-2 py-1 text-xs font-medium text-[var(--color-text-soft)] transition hover:bg-[var(--color-border)]"
-                  onClick={() => setFocusedDayIndex(index)}
+                  className="min-w-0 flex-1 text-left"
+                  onClick={() => {
+                    setExpandedProjectId((current) => (current === project.id ? "" : project.id));
+                  }}
+                  aria-expanded={isExpanded}
                 >
-                  Focus Day
-                </button>
-              </div>
-            );
-          })}
-        </div>
-
-        {recentCombos.length > 0 && (
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-              Recent Combos
-            </span>
-            {recentCombos.map((combo) => (
-              <button
-                key={`${combo.projectId}:${combo.taskId}:${combo.hourTypeId}`}
-                type="button"
-                className="rounded-full border border-[var(--color-border)] bg-white px-3 py-1.5 text-xs text-[var(--color-text-soft)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
-                onClick={() => addRow({ combo })}
-              >
-                {combo.projectName} / {combo.taskName} / {combo.hourTypeName}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {projectOverview.length > 0 && (
-          <div className="mb-4 grid gap-2 md:grid-cols-3">
-            {projectOverview.map((project) => (
-              <button
-                key={project.projectId}
-                type="button"
-                className={cn(
-                  "rounded-xl border px-3 py-2 text-left transition",
-                  activeTab === project.projectId
-                    ? "border-[var(--color-accent)] bg-[rgba(29,96,112,0.08)]"
-                    : "border-[var(--color-border)] bg-white hover:bg-[var(--color-panel-strong)]",
-                )}
-                onClick={() => setActiveTab(project.projectId)}
-              >
-                <p className="truncate text-sm font-semibold">{project.projectName}</p>
-                <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-                  {project.rowCount} row{project.rowCount === 1 ? "" : "s"} · {formatHours(project.total)}h
-                </p>
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className="space-y-4">
-          {groupedVisibleRows.length === 0 && (
-            <div className="rounded-xl border border-[var(--color-border)] bg-white px-3 py-10 text-center text-[var(--color-text-muted)]">
-              No rows for this filter/tab. Add one from Quick Add above.
-            </div>
-          )}
-
-          {groupedVisibleRows.map(({ project, rows: projectRows }) => {
-            const projectTotalsByDay = Array.from({ length: WEEKDAY_COUNT }, (_, dayIndex) =>
-              projectRows.reduce((sum, row) => sum + (row.hours[dayIndex] ?? 0), 0),
-            );
-            const projectTotal = projectTotalsByDay.reduce((sum, value) => sum + value, 0);
-
-            return (
-              <section key={project.id} className="rounded-2xl border border-[var(--color-border)] bg-white">
-                <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] px-3 py-3">
-                  <div>
-                    <h3 className="text-base font-semibold">{project.name}</h3>
-                    <p className="text-xs text-[var(--color-text-muted)]">
-                      {projectRows.length} row{projectRows.length === 1 ? "" : "s"} · {formatHours(projectTotal)}h
-                    </p>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: accentColor }}
+                      aria-hidden
+                    />
+                    <h3 className="truncate text-base font-semibold">{project.name}</h3>
+                    <span
+                      className={cn(
+                        "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]",
+                        status === "warning"
+                          ? "border-amber-300 bg-amber-50 text-amber-900"
+                          : "border-emerald-200 bg-emerald-50 text-emerald-800",
+                      )}
+                    >
+                      {status === "warning" ? "Warning" : "OK"}
+                    </span>
                   </div>
+                  <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                    {formatHours(total)}h total · {rowCount} row{rowCount === 1 ? "" : "s"} · {taskCount} task
+                    {taskCount === 1 ? "" : "s"}
+                    {rowSearch.trim().length > 0 && ` · Showing ${visibleRowCount}`}
+                  </p>
+                </button>
+
+                <div className="flex items-center gap-2">
                   <Button size="sm" variant="secondary" onClick={() => addRow({ overrideProjectId: project.id })}>
-                    Add Row To Project
+                    Add Row
                   </Button>
-                </header>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setExpandedProjectId((current) => (current === project.id ? "" : project.id))}
+                  >
+                    {isExpanded ? "Collapse" : "Expand"}
+                  </Button>
+                </div>
+              </header>
 
-                <div className="p-2">
-                  <table className="w-full table-fixed text-sm">
-                    <colgroup>
-                      <col className="w-[22%]" />
-                      <col className="w-[20%]" />
-                      <col className="w-[8%]" />
-                      <col className="w-[8%]" />
-                      <col className="w-[8%]" />
-                      <col className="w-[8%]" />
-                      <col className="w-[8%]" />
-                      <col className="w-[6%]" />
-                      <col className="w-[12%]" />
-                    </colgroup>
-                    <thead>
-                      <tr className="text-left text-xs uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-                        <th className="px-2 py-2 font-medium">Task</th>
-                        <th className="px-2 py-2 font-medium">Hour Type</th>
-                        {WEEKDAY_LABELS.map((label, index) => (
-                          <th key={`${project.id}-${label}`} className="px-2 py-2 font-medium">
-                            <button
-                              type="button"
-                              className={cn(
-                                "w-full rounded-md px-1 py-1 text-left transition",
-                                focusedDayIndex === index && "bg-[rgba(29,96,112,0.08)] text-[var(--color-accent)]",
-                              )}
-                              onClick={() => setFocusedDayIndex(index)}
-                            >
-                              {label}
-                            </button>
-                          </th>
-                        ))}
-                        <th className="px-2 py-2 font-medium">Total</th>
-                        <th className="px-2 py-2 text-right font-medium">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {projectRows.map((row) => {
-                        const task = project.tasks.find((item) => item.id === row.taskId) ?? project.tasks[0];
-                        const hourTypes = task?.hourTypes ?? [
-                          { id: DEFAULT_HOUR_TYPE_ID, name: DEFAULT_HOUR_TYPE_NAME },
-                        ];
-                        const selectedHourTypeName =
-                          hourTypes.find((item) => item.id === row.hourTypeId)?.name ?? "";
-                        const rowTotal = row.hours.reduce((sum, hours) => sum + hours, 0);
+              {isExpanded && (
+                <div className="p-2 sm:p-3">
+                  {visibleRowCount === 0 ? (
+                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-panel-strong)] px-3 py-8 text-center text-sm text-[var(--color-text-muted)]">
+                      No rows match this filter for this project.
+                    </div>
+                  ) : (
+                    <div className="max-h-[28rem] overflow-y-auto subtle-scroll rounded-xl border border-[var(--color-border)]">
+                      <table className="table-grid w-full table-fixed text-sm">
+                        <colgroup>
+                          <col className={shouldShowHourType ? "w-[24%]" : "w-[32%]"} />
+                          {shouldShowHourType && <col className="w-[17%]" />}
+                          <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
+                          <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
+                          <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
+                          <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
+                          <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
+                          <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
+                          <col className={shouldShowHourType ? "w-[11%]" : "w-[16%]"} />
+                        </colgroup>
+                        <thead>
+                          <tr className="text-left text-[11px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+                            <th className="px-2 py-2 font-medium">Task</th>
+                            {shouldShowHourType && <th className="px-2 py-2 font-medium">Type</th>}
+                            {WEEKDAY_LABELS.map((label, index) => (
+                              <th key={`${project.id}-${label}`} className="px-1 py-2 font-medium">
+                                <button
+                                  type="button"
+                                  className={cn(
+                                    "w-full rounded-md px-1 py-1 text-left text-[10px] transition",
+                                    focusedDayIndex === index &&
+                                      "bg-[rgba(29,96,112,0.08)] text-[var(--color-accent)]",
+                                  )}
+                                  onClick={() => setFocusedDayIndex(index)}
+                                >
+                                  {label}
+                                </button>
+                              </th>
+                            ))}
+                            <th className="px-2 py-2 text-center font-medium">Week</th>
+                            <th className="px-2 py-2 text-right font-medium">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {visibleProjectRows.map((row) => {
+                            const task = project.tasks.find((item) => item.id === row.taskId) ?? project.tasks[0];
+                            const hourTypes = task?.hourTypes ?? [
+                              { id: DEFAULT_HOUR_TYPE_ID, name: DEFAULT_HOUR_TYPE_NAME },
+                            ];
+                            const selectedHourTypeName =
+                              hourTypes.find((item) => item.id === row.hourTypeId)?.name ?? "";
+                            const rowTotal = row.hours.reduce((sum, hours) => sum + hours, 0);
 
-                        return (
-                          <tr key={row.id} className="border-t border-[var(--color-border)] align-middle">
-                            <td className="px-2 py-2">
-                              <Select
-                                aria-label="Task"
-                                title={task?.name ?? ""}
-                                value={row.taskId}
-                                onChange={(event) => {
-                                  const nextTask = project.tasks.find((item) => item.id === event.target.value);
-                                  const nextHourType =
-                                    nextTask?.hourTypes.find((type) => type.name === DEFAULT_HOUR_TYPE_NAME) ??
-                                    nextTask?.hourTypes[0];
-
-                                  updateRow(row.id, (current) => ({
-                                    ...current,
-                                    taskId: event.target.value,
-                                    hourTypeId: nextHourType?.id ?? current.hourTypeId,
-                                  }));
-                                }}
+                            return (
+                              <tr
+                                key={row.id}
+                                className="group/row border-t border-[var(--color-border)] align-middle"
                               >
-                                {project.tasks.map((taskItem) => (
-                                  <option key={taskItem.id} value={taskItem.id}>
-                                    {taskItem.name}
-                                  </option>
-                                ))}
-                              </Select>
-                            </td>
-                            <td className="px-2 py-2">
-                              <Select
-                                aria-label="Hour Type"
-                                title={selectedHourTypeName}
-                                value={row.hourTypeId}
-                                onChange={(event) => {
-                                  updateRow(row.id, (current) => ({
-                                    ...current,
-                                    hourTypeId: event.target.value,
-                                  }));
-                                }}
-                              >
-                                {hourTypes.map((hourType) => (
-                                  <option key={hourType.id} value={hourType.id}>
-                                    {hourType.name}
-                                  </option>
-                                ))}
-                              </Select>
-                            </td>
-                            {Array.from({ length: WEEKDAY_COUNT }, (_, dayIndex) => (
-                              <td
-                                key={`${row.id}-${dayIndex}`}
-                                className={cn(
-                                  "px-2 py-2",
-                                  focusedDayIndex === dayIndex && "bg-[rgba(29,96,112,0.08)]",
+                                <td className={cn("px-2", compactMode ? "py-1" : "py-1.5")}>
+                                  <Select
+                                    aria-label="Task"
+                                    title={task?.name ?? ""}
+                                    value={row.taskId}
+                                    className={cn(
+                                      compactMode ? "h-8 rounded-lg px-2 text-xs" : "h-9 rounded-lg px-2 text-sm",
+                                    )}
+                                    onFocus={() => setFocusedRowId(row.id)}
+                                    onChange={(event) => {
+                                      const nextTask = project.tasks.find((item) => item.id === event.target.value);
+                                      const nextHourType =
+                                        nextTask?.hourTypes.find((type) => type.name === DEFAULT_HOUR_TYPE_NAME) ??
+                                        nextTask?.hourTypes[0];
+
+                                      updateRow(
+                                        row.id,
+                                        (current) => ({
+                                          ...current,
+                                          taskId: event.target.value,
+                                          hourTypeId: nextHourType?.id ?? current.hourTypeId,
+                                        }),
+                                        row.projectId,
+                                      );
+                                    }}
+                                  >
+                                    {project.tasks.map((taskItem) => (
+                                      <option key={taskItem.id} value={taskItem.id}>
+                                        {taskItem.name}
+                                      </option>
+                                    ))}
+                                  </Select>
+                                </td>
+                                {shouldShowHourType && (
+                                  <td className={cn("px-2", compactMode ? "py-1" : "py-1.5")}>
+                                    <Select
+                                      aria-label="Hour Type"
+                                      title={selectedHourTypeName}
+                                      value={row.hourTypeId}
+                                      className={cn(
+                                        compactMode ? "h-8 rounded-lg px-2 text-xs" : "h-9 rounded-lg px-2 text-sm",
+                                      )}
+                                      onFocus={() => setFocusedRowId(row.id)}
+                                      onChange={(event) => {
+                                        updateRow(
+                                          row.id,
+                                          (current) => ({
+                                            ...current,
+                                            hourTypeId: event.target.value,
+                                          }),
+                                          row.projectId,
+                                        );
+                                      }}
+                                    >
+                                      {hourTypes.map((hourType) => (
+                                        <option key={hourType.id} value={hourType.id}>
+                                          {hourType.name}
+                                        </option>
+                                      ))}
+                                    </Select>
+                                  </td>
                                 )}
+                                {Array.from({ length: WEEKDAY_COUNT }, (_, dayIndex) => (
+                                  <td
+                                    key={`${row.id}-${dayIndex}`}
+                                    className={cn(
+                                      "px-1",
+                                      compactMode ? "py-1" : "py-1.5",
+                                      focusedDayIndex === dayIndex && "bg-[rgba(29,96,112,0.08)]",
+                                    )}
+                                  >
+                                    <Input
+                                      aria-label={`${WEEKDAY_LABELS[dayIndex]} hours`}
+                                      ref={(node) => {
+                                        const key = `${row.id}:${dayIndex}`;
+                                        if (node) {
+                                          inputRefs.current.set(key, node);
+                                        } else {
+                                          inputRefs.current.delete(key);
+                                        }
+                                      }}
+                                      inputMode="decimal"
+                                      value={row.hours[dayIndex] === 0 ? "" : row.hours[dayIndex]}
+                                      onFocus={() => {
+                                        setFocusedDayIndex(dayIndex);
+                                        setFocusedRowId(row.id);
+                                      }}
+                                      onChange={(event) => {
+                                        const hours = parseNumberInput(event.target.value);
+                                        updateRow(
+                                          row.id,
+                                          (current) => {
+                                            const nextHours = [...current.hours];
+                                            nextHours[dayIndex] = hours;
+                                            return {
+                                              ...current,
+                                              hours: nextHours,
+                                            };
+                                          },
+                                          row.projectId,
+                                        );
+                                      }}
+                                      onKeyDown={(event) => handleGridKeyDown(event, row.id, dayIndex)}
+                                      className={cn(
+                                        "w-full rounded-lg px-2 text-right font-mono",
+                                        compactMode ? "h-8 text-xs" : "h-9 text-sm",
+                                      )}
+                                    />
+                                  </td>
+                                ))}
+                                <td className="px-2 py-1 text-center font-mono text-xs font-semibold sm:text-sm">
+                                  {formatHours(rowTotal)}h
+                                </td>
+                                <td className="px-2 py-1">
+                                  <div className="relative flex justify-end" data-row-action-menu>
+                                    <div
+                                      className={cn(
+                                        "flex items-center gap-1 rounded-lg bg-white/95 p-1 shadow-sm transition",
+                                        "pointer-events-none opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100",
+                                        "group-focus-within/row:pointer-events-auto group-focus-within/row:opacity-100",
+                                      )}
+                                    >
+                                      <button
+                                        type="button"
+                                        className={iconButtonClass()}
+                                        onClick={() => {
+                                          setFocusedRowId(row.id);
+                                          fillWholeRow(row.id);
+                                        }}
+                                        title="Fill week from focused day"
+                                        aria-label="Fill week"
+                                      >
+                                        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" aria-hidden>
+                                          <path
+                                            d="M3 8a5 5 0 0 1 8.5-3.5M12 2.5V5h-2.5"
+                                            stroke="currentColor"
+                                            strokeWidth="1.3"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                          />
+                                          <path
+                                            d="M13 8a5 5 0 0 1-8.5 3.5M4 13.5V11h2.5"
+                                            stroke="currentColor"
+                                            strokeWidth="1.3"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                          />
+                                        </svg>
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        className={iconButtonClass()}
+                                        onClick={() => {
+                                          setFocusedRowId(row.id);
+                                          setOpenActionMenuRowId((current) =>
+                                            current === row.id ? null : row.id,
+                                          );
+                                        }}
+                                        title="More actions"
+                                        aria-label="More actions"
+                                      >
+                                        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
+                                          <circle cx="3" cy="8" r="1.2" />
+                                          <circle cx="8" cy="8" r="1.2" />
+                                          <circle cx="13" cy="8" r="1.2" />
+                                        </svg>
+                                      </button>
+                                    </div>
+
+                                    {openActionMenuRowId === row.id && (
+                                      <div className="absolute right-0 top-8 z-20 w-40 rounded-lg border border-[var(--color-border)] bg-white p-1 shadow-lg">
+                                        <button
+                                          type="button"
+                                          className="w-full rounded-md px-2 py-1.5 text-left text-xs text-[var(--color-text-soft)] transition hover:bg-[var(--color-panel-strong)]"
+                                          onClick={() => fillPreviousValues(row.id)}
+                                        >
+                                          Fill Previous
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="w-full rounded-md px-2 py-1.5 text-left text-xs text-[var(--color-text-soft)] transition hover:bg-[var(--color-panel-strong)]"
+                                          onClick={() => duplicateRow(row.id)}
+                                        >
+                                          Duplicate
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="w-full rounded-md px-2 py-1.5 text-left text-xs text-[var(--color-danger)] transition hover:bg-[rgba(180,83,77,0.12)]"
+                                          onClick={() => deleteRow(row.id)}
+                                        >
+                                          Delete
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t border-[var(--color-border)] bg-[var(--color-panel-strong)] text-xs font-semibold">
+                            <td colSpan={shouldShowHourType ? 2 : 1} className="px-2 py-2">
+                              Project Totals
+                            </td>
+                            {projectTotalsByDay.map((value, index) => (
+                              <td
+                                key={`${project.id}-project-total-${index}`}
+                                className="px-1 py-2 text-center font-mono"
                               >
-                                <Input
-                                  aria-label={`${WEEKDAY_LABELS[dayIndex]} hours`}
-                                  ref={(node) => {
-                                    const key = `${row.id}:${dayIndex}`;
-                                    if (node) {
-                                      inputRefs.current.set(key, node);
-                                    } else {
-                                      inputRefs.current.delete(key);
-                                    }
-                                  }}
-                                  inputMode="decimal"
-                                  value={row.hours[dayIndex] === 0 ? "" : row.hours[dayIndex]}
-                                  onFocus={() => setFocusedDayIndex(dayIndex)}
-                                  onChange={(event) => {
-                                    const hours = parseNumberInput(event.target.value);
-                                    updateRow(row.id, (current) => {
-                                      const nextHours = [...current.hours];
-                                      nextHours[dayIndex] = hours;
-                                      return {
-                                        ...current,
-                                        hours: nextHours,
-                                      };
-                                    });
-                                  }}
-                                  onKeyDown={(event) => handleGridKeyDown(event, row.id, dayIndex)}
-                                  className="h-9 w-full text-right font-mono"
-                                />
+                                {formatHours(value)}
                               </td>
                             ))}
-                            <td className="px-2 py-2 text-center font-semibold">{formatHours(rowTotal)}h</td>
-                            <td className="px-2 py-2">
-                              <div className="flex justify-end gap-1">
-                                <Button variant="ghost" size="sm" onClick={() => fillWholeRow(row.id)}>
-                                  Fill
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={() => duplicateRow(row.id)}>
-                                  Dup
-                                </Button>
-                                <Button variant="destructive" size="sm" onClick={() => deleteRow(row.id)}>
-                                  Del
-                                </Button>
-                              </div>
-                            </td>
+                            <td className="px-2 py-2 text-center font-mono">{formatHours(total)}</td>
+                            <td />
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t border-[var(--color-border)] bg-[var(--color-panel-strong)] text-xs font-semibold">
-                        <td colSpan={2} className="px-2 py-2">
-                          Project Totals
-                        </td>
-                        {projectTotalsByDay.map((total, index) => (
-                          <td key={`${project.id}-total-${index}`} className="px-2 py-2 text-center font-mono">
-                            {formatHours(total)}
-                          </td>
-                        ))}
-                        <td className="px-2 py-2 text-center font-mono">{formatHours(projectTotal)}</td>
-                        <td />
-                      </tr>
-                    </tfoot>
-                  </table>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
                 </div>
-              </section>
-            );
-          })}
+              )}
+            </section>
+          );
+        })}
+      </div>
 
-          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-panel-strong)] p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-semibold">
-                Visible Totals ({visibleRows.length} row{visibleRows.length === 1 ? "" : "s"})
-              </p>
-              <p className="text-xs text-[var(--color-text-muted)]">Global week: {formatHours(weekTotal)}h</p>
-            </div>
-            <div className="grid grid-cols-6 gap-2">
-              {visibleTotalsByDay.map((total, index) => (
+      <div className="sticky bottom-3 z-30">
+        <div className="rounded-2xl border border-[var(--color-border)] bg-white/95 p-3 shadow-lg backdrop-blur-md sm:px-4">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 xl:min-w-[33rem]">
+              {totalsByDay.map((total, index) => (
                 <div
-                  key={`total-${index}`}
+                  key={`global-day-total-${WEEKDAY_LABELS[index]}`}
                   className={cn(
-                    "rounded-lg bg-white px-2 py-2 text-center",
+                    "rounded-lg border border-[var(--color-border)] bg-[var(--color-panel-strong)] px-2 py-1.5 text-center",
                     focusedDayIndex === index && "ring-2 ring-[var(--color-ring)]",
                   )}
                 >
                   <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
                     {WEEKDAY_LABELS[index]}
                   </p>
-                  <p className="font-mono text-sm font-semibold">{formatHours(total)}h</p>
+                  <p className="font-mono text-xs font-semibold sm:text-sm">{formatHours(total)}h</p>
                 </div>
               ))}
-              <div className="rounded-lg bg-white px-2 py-2 text-center">
-                <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">Visible</p>
-                <p className="font-mono text-sm font-semibold">{formatHours(visibleWeekTotal)}h</p>
+              <div className="rounded-lg border border-[var(--color-border)] bg-white px-2 py-1.5 text-center">
+                <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">Week</p>
+                <p className="font-mono text-xs font-semibold sm:text-sm">{formatHours(weekTotal)}h</p>
               </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+              <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-panel-strong)] px-2.5 py-1 text-xs text-[var(--color-text-muted)]">
+                Save: {saveState}
+              </span>
+              <span
+                className={cn(
+                  "rounded-full border px-2.5 py-1 text-xs",
+                  exceedsMax
+                    ? "border-amber-300 bg-amber-50 text-amber-900"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-800",
+                )}
+              >
+                {utilizationPercent}% of {formatHours(config.maxHoursPerWeek)}h
+              </span>
+              {rowSearch.trim().length > 0 && (
+                <span className="rounded-full border border-[var(--color-border)] bg-white px-2.5 py-1 text-xs text-[var(--color-text-muted)]">
+                  Filtered: {visibleRows.length} rows / {formatHours(visibleWeekTotal)}h
+                </span>
+              )}
+              <Button size="sm" onClick={save} disabled={saveState === "saving" || saveBlocked}>
+                {saveState === "saving" ? "Saving..." : saveBlocked ? "Blocked" : "Save"}
+              </Button>
             </div>
           </div>
         </div>
-      </Card>
+      </div>
     </section>
   );
 }

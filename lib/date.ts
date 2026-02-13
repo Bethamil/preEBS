@@ -111,3 +111,23 @@ export function formatWeekRange(startIso: IsoDateString, endIso: IsoDateString):
   });
   return `${formatter.format(start)} - ${formatter.format(end)}`;
 }
+
+export function getIsoWeekNumber(
+  isoDate: IsoDateString,
+): { weekNumber: number; weekYear: number } | null {
+  const parsed = parseIsoDate(isoDate);
+  if (!parsed) {
+    return null;
+  }
+
+  const utcDate = new Date(Date.UTC(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()));
+  const day = utcDate.getUTCDay() || 7;
+  utcDate.setUTCDate(utcDate.getUTCDate() + 4 - day);
+
+  const weekYear = utcDate.getUTCFullYear();
+  const yearStart = new Date(Date.UTC(weekYear, 0, 1));
+  const daysSinceYearStart = Math.floor((utcDate.getTime() - yearStart.getTime()) / 86_400_000) + 1;
+  const weekNumber = Math.ceil(daysSinceYearStart / 7);
+
+  return { weekNumber, weekYear };
+}

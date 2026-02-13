@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
-import { currentWeekStart, formatWeekRange } from "@/lib/date";
+import { currentWeekStart, formatWeekRange, getIsoWeekNumber } from "@/lib/date";
 import type { WeekSummary } from "@/lib/types";
 import { formatHours } from "@/lib/utils";
 
@@ -142,52 +142,63 @@ export function WeeksOverviewClient() {
               )}
 
               {!loading &&
-                weeks.map((week) => (
-                  <tr key={week.weekStartDate} className="border-t border-[var(--color-border)]">
-                    <td className="px-4 py-4 align-middle">
-                      <p className="font-semibold">{week.weekStartDate}</p>
-                      <p className="text-xs text-[var(--color-text-muted)]">
-                        {formatWeekRange(week.weekStartDate, week.weekEndDate)}
-                      </p>
-                    </td>
-                    <td className="px-4 py-4 align-middle font-semibold">
-                      {formatHours(week.totalHours)}h
-                    </td>
-                    <td className="px-4 py-4 align-middle">
-                      {week.exceededMaxHours ? (
-                        <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900">
-                          Exceeded
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-900">
-                          Within Limit
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 align-middle text-[var(--color-text-muted)]">
-                      {new Intl.DateTimeFormat("en-CA", {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      }).format(new Date(week.updatedAt))}
-                    </td>
-                    <td className="px-4 py-4 align-middle">
-                      <div className="flex justify-end gap-2">
-                        <Link href={`/week/${week.weekStartDate}`}>
-                          <Button variant="secondary" size="sm">
-                            Open/Edit
+                weeks.map((week) => {
+                  const isoWeek = getIsoWeekNumber(week.weekStartDate);
+
+                  return (
+                    <tr key={week.weekStartDate} className="border-t border-[var(--color-border)]">
+                      <td className="px-4 py-4 align-middle">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold">{week.weekStartDate}</p>
+                          {isoWeek && (
+                            <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-panel-strong)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-soft)]">
+                              Week {isoWeek.weekNumber}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-[var(--color-text-muted)]">
+                          {formatWeekRange(week.weekStartDate, week.weekEndDate)}
+                        </p>
+                      </td>
+                      <td className="px-4 py-4 align-middle font-semibold">
+                        {formatHours(week.totalHours)}h
+                      </td>
+                      <td className="px-4 py-4 align-middle">
+                        {week.exceededMaxHours ? (
+                          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900">
+                            Exceeded
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-900">
+                            Within Limit
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 align-middle text-[var(--color-text-muted)]">
+                        {new Intl.DateTimeFormat("en-CA", {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        }).format(new Date(week.updatedAt))}
+                      </td>
+                      <td className="px-4 py-4 align-middle">
+                        <div className="flex justify-end gap-2">
+                          <Link href={`/week/${week.weekStartDate}`}>
+                            <Button variant="secondary" size="sm">
+                              Open/Edit
+                            </Button>
+                          </Link>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => exportWeek(week.weekStartDate)}
+                          >
+                            Export JSON
                           </Button>
-                        </Link>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => exportWeek(week.weekStartDate)}
-                        >
-                          Export JSON
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>

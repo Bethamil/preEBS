@@ -11,27 +11,29 @@ PreEBS is a UX-first weekly timesheet app designed for people who still have to 
 ## Features
 
 - `/config`: manage Projects, Tasks, Hour Types, max-hours rule, and optional blocking when exceeded.
-- `/week/[weekStartDate]`: high-speed weekly entry (Mon-Fri) with project tabs, keyboard navigation, totals, warnings, and auto-save.
+- `/week/[weekStartDate]`: high-speed weekly entry (Mon-Fri) with collapsible project panels, compact weekly grid, keyboard navigation, sticky totals footer, warnings, and auto-save.
 - `/weeks`: saved week overview with totals, exceeded indicators, search, and export.
 - Export per-week nested JSON grouped by day -> projects -> tasks -> hour types.
 
 ## UX Pattern Choice
 
-The week-entry page uses **project tabs with a compact weekly grid**.
+The week-entry page uses **collapsible project panels with a compact weekly grid**.
 
 Why this pattern:
 
 - Scales well for many tasks (for example 3 projects x 10 tasks) by reducing visible scope.
 - Keeps all weekday cells visible for fast keyboard entry.
-- Preserves context: users can focus on one project at a time or switch to "All Projects".
+- Keeps context clear with per-project totals, row/task counts, and status indicators in every project header.
+- Expands the last edited project by default so users return to their active section immediately.
 
 ## Quality-of-life features implemented
 
 - Copy previous week
 - Duplicate row
 - Clear day (per weekday)
-- Recently used task/hour-type shortcuts
-- Keyboard shortcuts: `Alt+N` add row, `Ctrl/Cmd+S` save
+- Searchable quick-add combos (project/task/hour type in one action)
+- Hover-revealed row actions with compact `...` menu
+- Keyboard shortcuts: `Alt+N` add row, `Alt+D` duplicate focused row, `Alt+F` fill previous values, `Ctrl/Cmd+S` save
 
 ## Local development
 
