@@ -20,8 +20,6 @@ import {
   getIsoWeekNumber,
   formatWeekRange,
   getWeekDates,
-  nextWeekStart,
-  previousWeekStart,
 } from "@/lib/date";
 import type { RecentCombo, UserConfig, WeekDocument, WeekRowInput } from "@/lib/types";
 import { clampHours, cn, formatHours, parseNumberInput } from "@/lib/utils";
@@ -912,16 +910,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Link href={`/week/${previousWeekStart(weekStartDate as WeekDocument["weekStartDate"])}`}>
-              <Button variant="secondary" size="sm">
-                Previous Week
-              </Button>
-            </Link>
-            <Link href={`/week/${nextWeekStart(weekStartDate as WeekDocument["weekStartDate"])}`}>
-              <Button variant="secondary" size="sm">
-                Next Week
-              </Button>
-            </Link>
             <Button variant="secondary" size="sm" onClick={copyPrevious}>
               Copy Previous
             </Button>
