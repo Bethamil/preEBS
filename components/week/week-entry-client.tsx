@@ -135,7 +135,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   const [focusedDayIndex, setFocusedDayIndex] = useState<number | null>(0);
   const [focusedRowId, setFocusedRowId] = useState<string | null>(null);
   const [rowSearch, setRowSearch] = useState("");
-  const [expandedProjectId, setExpandedProjectId] = useState("");
+  const [openProjectIds, setOpenProjectIds] = useState<string[]>([]);
   const [compactMode, setCompactMode] = useState(false);
   const [openActionMenuRowId, setOpenActionMenuRowId] = useState<string | null>(null);
 
@@ -181,21 +181,36 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   const projects = config?.projects ?? [];
 
   const rememberEditedProject = (projectId: string) => {
-    setExpandedProjectId(projectId);
+    setOpenProjectIds((current) => (current.includes(projectId) ? current : [...current, projectId]));
     if (typeof window !== "undefined") {
       window.localStorage.setItem(LAST_EDITED_PROJECT_STORAGE_KEY, projectId);
     }
   };
 
+  const toggleProjectOpen = (projectId: string) => {
+    setOpenProjectIds((current) =>
+      current.includes(projectId) ? current.filter((id) => id !== projectId) : [...current, projectId],
+    );
+  };
+
   useEffect(() => {
     if (projects.length === 0) {
-      setExpandedProjectId("");
+      setOpenProjectIds((current) => (current.length === 0 ? current : []));
       return;
     }
 
-    setExpandedProjectId((current) => {
-      if (current && projects.some((project) => project.id === current)) {
-        return current;
+    setOpenProjectIds((current) => {
+      const validCurrent = current.filter((projectId) =>
+        projects.some((project) => project.id === projectId),
+      );
+      if (validCurrent.length > 0) {
+        const unchanged =
+          validCurrent.length === current.length &&
+          validCurrent.every((projectId, index) => projectId === current[index]);
+        if (unchanged) {
+          return current;
+        }
+        return validCurrent;
       }
 
       const fromStorage =
@@ -204,15 +219,15 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
           : "";
 
       if (fromStorage && projects.some((project) => project.id === fromStorage)) {
-        return fromStorage;
+        return current.length === 1 && current[0] === fromStorage ? current : [fromStorage];
       }
 
       const fallbackFromRows = rows[rows.length - 1]?.projectId;
       if (fallbackFromRows && projects.some((project) => project.id === fallbackFromRows)) {
-        return fallbackFromRows;
+        return current.length === 1 && current[0] === fallbackFromRows ? current : [fallbackFromRows];
       }
 
-      return projects[0].id;
+      return current.length === 1 && current[0] === projects[0].id ? current : [projects[0].id];
     });
   }, [projects, rows]);
 
@@ -386,13 +401,14 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     });
   }, [rows, rowSearch, nameMaps]);
 
-  const expandedVisibleRows = useMemo(() => {
-    if (!expandedProjectId) {
+  const openVisibleRows = useMemo(() => {
+    if (openProjectIds.length === 0) {
       return [];
     }
 
-    return visibleRows.filter((row) => row.projectId === expandedProjectId);
-  }, [visibleRows, expandedProjectId]);
+    const openProjects = new Set(openProjectIds);
+    return visibleRows.filter((row) => openProjects.has(row.projectId));
+  }, [visibleRows, openProjectIds]);
 
   const totalsByDay = useMemo(
     () =>
@@ -511,7 +527,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   const utilizationPercent = config
     ? Math.min(100, Math.round((weekTotal / Math.max(config.maxHoursPerWeek, 1)) * 100))
     : 0;
-  const saveBlocked = Boolean(config?.blockOnMaxHoursExceed && exceedsMax);
 
   const ensureRowConsistency = (row: LocalRow): LocalRow => {
     const project = projects.find((item) => item.id === row.projectId) ?? projects[0];
@@ -696,12 +711,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       return;
     }
 
-    if (config.blockOnMaxHoursExceed && exceedsMax) {
-      setSaveState("error");
-      pushToast("Reduce hours before saving. This week exceeds your max.", "error");
-      return;
-    }
-
     setSaveState("saving");
     const response = await fetch(`/api/weeks/${weekStartDate}`, {
       method: "PUT",
@@ -794,7 +803,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     });
   };
 
-  const visibleRowIds = expandedVisibleRows.map((row) => row.id);
+  const visibleRowIds = openVisibleRows.map((row) => row.id);
 
   const focusCell = (rowId: string, dayIndex: number) => {
     const key = `${rowId}:${dayIndex}`;
@@ -913,9 +922,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
         {exceedsMax && (
           <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             Week total exceeds configured max ({formatHours(config.maxHoursPerWeek)}h).
-            {config.blockOnMaxHoursExceed
-              ? " Saving is blocked until hours are reduced."
-              : " Saving remains allowed for exceptional weeks."}
           </div>
         )}
       </Card>
@@ -1090,7 +1096,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       </Card>
 
       <Card className="p-4 sm:p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="w-full max-w-md">
             <Input
               placeholder={
@@ -1102,10 +1108,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
               onChange={(event) => setRowSearch(event.target.value)}
             />
           </div>
-
-          <Button size="sm" onClick={() => addRow()}>
-            Add Row
-          </Button>
         </div>
 
         <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
@@ -1146,7 +1148,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       <div className="space-y-3">
         {projectSummaries.map((summary) => {
           const { project, accentColor, projectRows, visibleProjectRows, totalsByDay: projectTotalsByDay, total, taskCount, status } = summary;
-          const isExpanded = expandedProjectId === project.id;
+          const isExpanded = openProjectIds.includes(project.id);
           const rowCount = projectRows.length;
           const visibleRowCount = visibleProjectRows.length;
 
@@ -1160,9 +1162,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                 <button
                   type="button"
                   className="min-w-0 flex-1 text-left"
-                  onClick={() => {
-                    setExpandedProjectId((current) => (current === project.id ? "" : project.id));
-                  }}
+                  onClick={() => toggleProjectOpen(project.id)}
                   aria-expanded={isExpanded}
                 >
                   <div className="flex items-center gap-2">
@@ -1197,7 +1197,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => setExpandedProjectId((current) => (current === project.id ? "" : project.id))}
+                    onClick={() => toggleProjectOpen(project.id)}
                   >
                     {isExpanded ? "Collapse" : "Expand"}
                   </Button>
@@ -1533,8 +1533,8 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                   Filtered: {visibleRows.length} rows / {formatHours(visibleWeekTotal)}h
                 </span>
               )}
-              <Button size="sm" onClick={save} disabled={saveState === "saving" || saveBlocked}>
-                {saveState === "saving" ? "Saving..." : saveBlocked ? "Blocked" : "Save"}
+              <Button size="sm" onClick={save} disabled={saveState === "saving"}>
+                {saveState === "saving" ? "Saving..." : "Save"}
               </Button>
             </div>
           </div>

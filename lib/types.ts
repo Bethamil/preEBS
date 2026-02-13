@@ -26,7 +26,6 @@ export interface Project {
 export interface UserConfig {
   userId: string;
   maxHoursPerWeek: number;
-  blockOnMaxHoursExceed: boolean;
   projects: Project[];
   updatedAt: string;
 }

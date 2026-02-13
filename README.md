@@ -51,7 +51,6 @@ The JSON document database stores:
 - `users[]`
 - `configs[userId]`
   - `maxHoursPerWeek`
-  - `blockOnMaxHoursExceed`
   - `projects[]`
     - `tasks[]`
       - `hourTypes[]`

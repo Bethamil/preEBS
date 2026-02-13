@@ -49,7 +49,6 @@ export function createEmptyConfig(userId: string = DEFAULT_USER_ID): UserConfig 
   return {
     userId,
     maxHoursPerWeek: 40,
-    blockOnMaxHoursExceed: false,
     projects: [],
     updatedAt: nowIso(),
   };
@@ -102,12 +101,18 @@ async function withWriteLock<T>(job: () => Promise<T>): Promise<T> {
   return result;
 }
 
-function ensureDefaultHourType(taskHourTypes: { id: string; name: string }[]): { id: string; name: string }[] {
-  const hasDefault = taskHourTypes.some((type) => type.name === DEFAULT_HOUR_TYPE_NAME);
-  if (hasDefault) {
-    return taskHourTypes;
+function normalizeSingleHourType(
+  taskHourTypes: { id: string; name: string }[],
+): { id: string; name: string }[] {
+  if (taskHourTypes.length === 0) {
+    return [{ id: DEFAULT_HOUR_TYPE_ID, name: DEFAULT_HOUR_TYPE_NAME }];
   }
-  return [{ id: DEFAULT_HOUR_TYPE_ID, name: DEFAULT_HOUR_TYPE_NAME }, ...taskHourTypes];
+
+  const preferred = taskHourTypes.find(
+    (type) => type.name.trim().toLowerCase() !== DEFAULT_HOUR_TYPE_NAME.toLowerCase(),
+  ) ?? taskHourTypes[0];
+
+  return [{ id: preferred.id || randomUUID(), name: preferred.name }];
 }
 
 function normalizeProject(project: Project): Project {
@@ -129,7 +134,7 @@ function normalizeProject(project: Project): Project {
       return {
         id: task.id || randomUUID(),
         name: taskName,
-        hourTypes: ensureDefaultHourType(validHourTypes),
+        hourTypes: normalizeSingleHourType(validHourTypes),
       };
     })
     .filter((task): task is NonNullable<typeof task> => Boolean(task));
@@ -153,7 +158,6 @@ export function normalizeConfig(config: UserConfig): UserConfig {
   return {
     userId: config.userId || DEFAULT_USER_ID,
     maxHoursPerWeek: maxHours,
-    blockOnMaxHoursExceed: Boolean(config.blockOnMaxHoursExceed),
     projects,
     updatedAt: nowIso(),
   };

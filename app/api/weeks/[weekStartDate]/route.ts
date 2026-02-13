@@ -58,21 +58,6 @@ export async function PUT(
 
   const body = (await request.json()) as { rows?: WeekRowInput[] };
   const rows = body.rows ?? [];
-  const config = await getConfig();
-
-  const nextTotal = rows.reduce(
-    (weekSum, row) => weekSum + (row.hours ?? []).reduce((daySum, hours) => daySum + hours, 0),
-    0,
-  );
-
-  if (config.blockOnMaxHoursExceed && nextTotal > config.maxHoursPerWeek) {
-    return NextResponse.json(
-      {
-        error: `Week total ${nextTotal} exceeds max ${config.maxHoursPerWeek}.`,
-      },
-      { status: 409 },
-    );
-  }
 
   const week = await saveWeek(weekStartDate as WeekDocument["weekStartDate"], rows);
   return NextResponse.json({ week });
