@@ -29,11 +29,11 @@ Why this pattern:
 ## Quality-of-life features implemented
 
 - Copy previous week
-- Duplicate row
+- Add same hours to existing row
 - Clear day (per weekday)
 - Searchable quick-add combos (project/task/hour type in one action)
-- Hover-revealed row actions with compact `...` menu
-- Keyboard shortcuts: `Alt+N` add row, `Alt+D` duplicate focused row, `Alt+F` fill previous values, `Ctrl/Cmd+S` save
+- Simple per-row delete action
+- Quick search focus shortcut: `Cmd/Ctrl + K`
 
 ## Local development
 

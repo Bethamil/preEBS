@@ -234,7 +234,7 @@ function buildRowNameMaps(config: UserConfig): {
 function normalizeWeekRows(rows: WeekRowInput[], config: UserConfig): WeekDocument["rows"] {
   const { projectMap, taskMap, hourTypeMap } = buildRowNameMaps(config);
 
-  return rows
+  const normalizedRows = rows
     .map((row) => {
       const projectRef = projectMap.get(row.projectId);
       const taskRef = taskMap.get(row.taskId);
@@ -261,6 +261,32 @@ function normalizeWeekRows(rows: WeekRowInput[], config: UserConfig): WeekDocume
       };
     })
     .filter((row): row is NonNullable<typeof row> => Boolean(row));
+
+  const byCombo = new Map<string, WeekDocument["rows"][number]>();
+  const order: string[] = [];
+
+  for (const row of normalizedRows) {
+    const key = `${row.projectId}:${row.taskId}:${row.hourTypeId}`;
+    const existing = byCombo.get(key);
+
+    if (!existing) {
+      byCombo.set(key, row);
+      order.push(key);
+      continue;
+    }
+
+    byCombo.set(key, {
+      ...existing,
+      hours: Array.from({ length: WEEKDAY_COUNT }, (_, index) =>
+        clampHours((existing.hours[index] ?? 0) + (row.hours[index] ?? 0)),
+      ),
+      note: existing.note ?? row.note,
+    });
+  }
+
+  return order
+    .map((key) => byCombo.get(key))
+    .filter((row): row is WeekDocument["rows"][number] => Boolean(row));
 }
 
 function totalWeekHours(week: WeekDocument): number {

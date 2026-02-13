@@ -85,24 +85,56 @@ function comboLabel(
   return `${combo.projectName} / ${combo.taskName} / ${combo.hourTypeName}`;
 }
 
-function iconButtonClass(destructive = false): string {
-  return cn(
-    "inline-flex h-7 w-7 items-center justify-center rounded-md border text-[var(--color-text-muted)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]",
-    destructive
-      ? "border-[rgba(180,83,77,0.3)] hover:bg-[rgba(180,83,77,0.12)] hover:text-[var(--color-danger)]"
-      : "border-[var(--color-border)] hover:bg-[var(--color-panel-strong)] hover:text-[var(--color-text)]",
+function mergeHours(base: number[], incoming: number[]): number[] {
+  return Array.from({ length: WEEKDAY_COUNT }, (_, index) =>
+    clampHours((base[index] ?? 0) + (incoming[index] ?? 0)),
   );
 }
 
+function hasHours(hours: number[]): boolean {
+  return hours.some((value) => value > 0);
+}
+
+function mergeDuplicateRows(rows: LocalRow[]): LocalRow[] {
+  const byCombo = new Map<string, LocalRow>();
+  const order: string[] = [];
+
+  for (const row of rows) {
+    const key = comboKey(row.projectId, row.taskId, row.hourTypeId);
+    const existing = byCombo.get(key);
+
+    if (!existing) {
+      byCombo.set(key, {
+        ...row,
+        hours: Array.from({ length: WEEKDAY_COUNT }, (_, index) => clampHours(row.hours[index] ?? 0)),
+      });
+      order.push(key);
+      continue;
+    }
+
+    byCombo.set(key, {
+      ...existing,
+      hours: mergeHours(existing.hours, row.hours),
+      note: existing.note ?? row.note,
+    });
+  }
+
+  return order
+    .map((key) => byCombo.get(key))
+    .filter((row): row is LocalRow => Boolean(row));
+}
+
 function toLocalRows(week: WeekDocument): LocalRow[] {
-  return week.rows.map((row) => ({
-    id: row.id,
-    projectId: row.projectId,
-    taskId: row.taskId,
-    hourTypeId: row.hourTypeId,
-    hours: Array.from({ length: WEEKDAY_COUNT }, (_, index) => clampHours(row.hours[index] ?? 0)),
-    note: row.note,
-  }));
+  return mergeDuplicateRows(
+    week.rows.map((row) => ({
+      id: row.id,
+      projectId: row.projectId,
+      taskId: row.taskId,
+      hourTypeId: row.hourTypeId,
+      hours: Array.from({ length: WEEKDAY_COUNT }, (_, index) => clampHours(row.hours[index] ?? 0)),
+      note: row.note,
+    })),
+  );
 }
 
 function serializeRows(rows: LocalRow[]): string {
@@ -134,11 +166,9 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   const [loading, setLoading] = useState(true);
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState("");
   const [focusedDayIndex, setFocusedDayIndex] = useState<number | null>(0);
-  const [focusedRowId, setFocusedRowId] = useState<string | null>(null);
   const [rowSearch, setRowSearch] = useState("");
   const [openProjectIds, setOpenProjectIds] = useState<string[]>([]);
   const [compactMode, setCompactMode] = useState(false);
-  const [openActionMenuRowId, setOpenActionMenuRowId] = useState<string | null>(null);
 
   const [quickProjectId, setQuickProjectId] = useState("");
   const [quickTaskId, setQuickTaskId] = useState("");
@@ -148,6 +178,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   const [quickComboSearch, setQuickComboSearch] = useState("");
 
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+  const quickComboSearchInputRef = useRef<HTMLInputElement | null>(null);
 
   const weekDates = useMemo(
     () => getWeekDates(weekStartDate as WeekDocument["weekStartDate"]),
@@ -309,46 +340,19 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
 
   useEffect(() => {
     const listener = (event: KeyboardEvent) => {
-      if (event.altKey && event.key.toLowerCase() === "n") {
-        event.preventDefault();
-        addRow();
+      if (event.altKey || event.shiftKey) {
+        return;
       }
-
-      if (event.altKey && event.key.toLowerCase() === "d" && focusedRowId) {
-        event.preventDefault();
-        duplicateRow(focusedRowId);
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "k") {
+        return;
       }
-
-      if (event.altKey && event.key.toLowerCase() === "f" && focusedRowId) {
-        event.preventDefault();
-        fillPreviousValues(focusedRowId);
-      }
-
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
-        event.preventDefault();
-        void save();
-      }
+      event.preventDefault();
+      quickComboSearchInputRef.current?.focus();
+      quickComboSearchInputRef.current?.select();
     };
 
     window.addEventListener("keydown", listener);
     return () => window.removeEventListener("keydown", listener);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, config, focusedRowId]);
-
-  useEffect(() => {
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target;
-      if (!(target instanceof HTMLElement)) {
-        return;
-      }
-      if (target.closest("[data-row-action-menu]")) {
-        return;
-      }
-      setOpenActionMenuRowId(null);
-    };
-
-    window.addEventListener("pointerdown", handlePointerDown);
-    return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, []);
 
   const snapshot = useMemo(() => serializeRows(rows), [rows]);
@@ -626,15 +630,31 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     };
 
     rememberEditedProject(project.id);
-    setRows((current) => [...current, ensureRowConsistency(nextRow)]);
+    const normalizedNextRow = ensureRowConsistency(nextRow);
+    const nextComboKey = comboKey(
+      normalizedNextRow.projectId,
+      normalizedNextRow.taskId,
+      normalizedNextRow.hourTypeId,
+    );
+    const existing = rows.find(
+      (row) => comboKey(row.projectId, row.taskId, row.hourTypeId) === nextComboKey,
+    );
+
+    setRows((current) => mergeDuplicateRows([...current, normalizedNextRow]));
+
+    if (existing) {
+      pushToast(
+        hasHours(normalizedNextRow.hours) ? "Hours added to existing task row." : "Task already exists in this project.",
+        "info",
+      );
+    }
 
     const focusDay = options?.fillWholeWeek ? 0 : presetDayIndex;
     window.setTimeout(() => {
-      const key = `${nextRow.id}:${focusDay}`;
+      const key = `${existing?.id ?? normalizedNextRow.id}:${focusDay}`;
       const input = inputRefs.current.get(key);
       input?.focus();
       input?.select();
-      setFocusedRowId(nextRow.id);
     }, 10);
   };
 
@@ -642,7 +662,36 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     if (projectHint) {
       rememberEditedProject(projectHint);
     }
-    setRows((current) => current.map((row) => (row.id === rowId ? ensureRowConsistency(updater(row)) : row)));
+    setRows((current) => {
+      const updatedRows = current.map((row) =>
+        row.id === rowId ? ensureRowConsistency(updater(row)) : row,
+      );
+      const updatedRow = updatedRows.find((row) => row.id === rowId);
+      if (!updatedRow) {
+        return updatedRows;
+      }
+
+      const duplicate = updatedRows.find(
+        (row) =>
+          row.id !== rowId &&
+          row.projectId === updatedRow.projectId &&
+          row.taskId === updatedRow.taskId &&
+          row.hourTypeId === updatedRow.hourTypeId,
+      );
+      if (!duplicate) {
+        return updatedRows;
+      }
+
+      const mergedRow: LocalRow = {
+        ...duplicate,
+        hours: mergeHours(duplicate.hours, updatedRow.hours),
+        note: duplicate.note ?? updatedRow.note,
+      };
+
+      return updatedRows
+        .filter((row) => row.id !== rowId)
+        .map((row) => (row.id === duplicate.id ? mergedRow : row));
+    });
   };
 
   const deleteRow = (rowId: string) => {
@@ -651,77 +700,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       return;
     }
 
-    setOpenActionMenuRowId(null);
     setRows((current) => current.filter((row) => row.id !== rowId));
-  };
-
-  const duplicateRow = (rowId: string) => {
-    const source = rows.find((row) => row.id === rowId);
-    if (!source) {
-      return;
-    }
-
-    const duplicate = { ...source, id: crypto.randomUUID() };
-    const sourceIndex = rows.findIndex((row) => row.id === rowId);
-    const next = [...rows];
-    next.splice(sourceIndex + 1, 0, duplicate);
-
-    rememberEditedProject(source.projectId);
-    setRows(next);
-    setOpenActionMenuRowId(null);
-    pushToast("Row duplicated.", "info");
-  };
-
-  const fillWholeRow = (rowId: string) => {
-    const row = rows.find((item) => item.id === rowId);
-    if (!row) {
-      return;
-    }
-
-    const sourceDay = focusedDayIndex ?? 0;
-    const sourceHours = row.hours[sourceDay] ?? 0;
-
-    if (sourceHours <= 0) {
-      pushToast("Set hours in the focused day first, then use Fill Week.", "info");
-      return;
-    }
-
-    updateRow(
-      rowId,
-      (current) => ({
-        ...current,
-        hours: Array.from({ length: WEEKDAY_COUNT }, () => sourceHours),
-      }),
-      row.projectId,
-    );
-  };
-
-  const fillPreviousValues = (rowId: string) => {
-    const rowIndex = rows.findIndex((row) => row.id === rowId);
-    if (rowIndex <= 0) {
-      pushToast("No previous row to copy from.", "info");
-      return;
-    }
-
-    const previous = rows[rowIndex - 1];
-    const current = rows[rowIndex];
-    if (!previous || !current) {
-      return;
-    }
-
-    updateRow(
-      rowId,
-      (row) => ({
-        ...row,
-        taskId: previous.taskId,
-        hourTypeId: previous.hourTypeId,
-        hours: [...previous.hours],
-      }),
-      current.projectId,
-    );
-
-    setOpenActionMenuRowId(null);
-    pushToast("Filled from previous row.", "info");
   };
 
   const clearDay = (dayIndex: number) => {
@@ -832,7 +811,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       overrideTaskId: combo.taskId,
       overrideHourTypeId: combo.hourTypeId,
       presetDayIndex: quickDayIndex,
-      presetHours: clampHours(parseNumberInput(quickHours)),
+      presetHours: 0,
       fillWholeWeek: false,
     });
   };
@@ -844,7 +823,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     const input = inputRefs.current.get(key);
     input?.focus();
     input?.select();
-    setFocusedRowId(rowId);
   };
 
   const handleGridKeyDown = (
@@ -968,14 +946,22 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       </Card>
 
       <Card className="p-4 sm:p-5">
-        <div className="grid gap-4 lg:grid-cols-[1.7fr_1fr]">
-          <div>
-            <label className="space-y-1">
-              <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-                Quick Add Search
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+              Quick Add Search
+            </span>
+            <div className="relative">
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--color-text-muted)]">
+                <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" aria-hidden>
+                  <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.3" />
+                  <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                </svg>
               </span>
               <Input
+                ref={quickComboSearchInputRef}
                 value={quickComboSearch}
+                className="h-11 rounded-xl border-[var(--color-border)] bg-[var(--color-panel-strong)] pl-9 pr-16 text-sm shadow-none"
                 onChange={(event) => setQuickComboSearch(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key !== "Enter") {
@@ -991,43 +977,38 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                 }}
                 placeholder={
                   shouldShowHourType
-                    ? "Type project, task, or hour type, then press Enter"
-                    : "Type project or task, then press Enter"
+                    ? "Search project, task, or hour type..."
+                    : "Search project or task..."
                 }
               />
-            </label>
-
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {quickComboMatches.slice(0, compactMode ? 4 : 6).map((combo) => (
-                <button
-                  key={comboKey(combo.projectId, combo.taskId, combo.hourTypeId)}
-                  type="button"
-                  className="inline-flex max-w-full items-center gap-1 rounded-full border border-[var(--color-border)] bg-white px-2.5 py-1 text-xs text-[var(--color-text-soft)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
-                  onClick={() => quickAddFromCombo(combo)}
-                  title={combo.label}
-                >
-                  {combo.isRecent && (
-                    <span className="rounded-full bg-[var(--color-panel-strong)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-                      Recent
-                    </span>
-                  )}
-                  <span className="truncate">{combo.label}</span>
-                </button>
-              ))}
-              {quickComboMatches.length === 0 && (
-                <p className="text-xs text-[var(--color-text-muted)]">No combo matches this search.</p>
-              )}
+              <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
+                <kbd className="inline-flex h-6 items-center rounded-md border border-[var(--color-border)] bg-white px-2 text-[11px] font-medium text-[var(--color-text-muted)]">
+                  ⌘K
+                </kbd>
+              </span>
             </div>
           </div>
 
-          <div className="space-y-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-panel-strong)] p-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-              Keyboard
-            </p>
-            <p className="text-xs text-[var(--color-text-soft)]">Alt+N Add row</p>
-            <p className="text-xs text-[var(--color-text-soft)]">Alt+D Duplicate focused row</p>
-            <p className="text-xs text-[var(--color-text-soft)]">Alt+F Fill previous values</p>
-            <p className="text-xs text-[var(--color-text-soft)]">Ctrl/Cmd+S Save</p>
+          <div className="flex flex-wrap items-center gap-2">
+            {quickComboMatches.slice(0, compactMode ? 4 : 6).map((combo) => (
+              <button
+                key={comboKey(combo.projectId, combo.taskId, combo.hourTypeId)}
+                type="button"
+                className="inline-flex max-w-full items-center gap-1 rounded-full border border-[var(--color-border)] bg-white px-2.5 py-1 text-xs text-[var(--color-text-soft)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+                onClick={() => quickAddFromCombo(combo)}
+                title={combo.label}
+              >
+                {combo.isRecent && (
+                  <span className="rounded-full bg-[var(--color-panel-strong)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+                    Recent
+                  </span>
+                )}
+                <span className="truncate">{combo.label}</span>
+              </button>
+            ))}
+            {quickComboMatches.length === 0 && (
+              <p className="text-xs text-[var(--color-text-muted)]">No combo matches this search.</p>
+            )}
           </div>
         </div>
 
@@ -1305,7 +1286,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                             return (
                               <tr
                                 key={row.id}
-                                className="group/row border-t border-[var(--color-border)] align-middle"
+                                className="border-t border-[var(--color-border)] align-middle"
                               >
                                 <td className={cn("px-2", compactMode ? "py-1" : "py-1.5")}>
                                   <Select
@@ -1315,7 +1296,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                                     className={cn(
                                       compactMode ? "h-8 rounded-lg px-2 text-xs" : "h-9 rounded-lg px-2 text-sm",
                                     )}
-                                    onFocus={() => setFocusedRowId(row.id)}
                                     onChange={(event) => {
                                       const nextTask = project.tasks.find((item) => item.id === event.target.value);
                                       const nextHourType =
@@ -1349,7 +1329,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                                       className={cn(
                                         compactMode ? "h-8 rounded-lg px-2 text-xs" : "h-9 rounded-lg px-2 text-sm",
                                       )}
-                                      onFocus={() => setFocusedRowId(row.id)}
                                       onChange={(event) => {
                                         updateRow(
                                           row.id,
@@ -1392,7 +1371,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                                       value={row.hours[dayIndex] === 0 ? "" : row.hours[dayIndex]}
                                       onFocus={() => {
                                         setFocusedDayIndex(dayIndex);
-                                        setFocusedRowId(row.id);
                                       }}
                                       onChange={(event) => {
                                         const hours = parseNumberInput(event.target.value);
@@ -1420,89 +1398,25 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                                 <td className="px-2 py-1 text-center font-mono text-xs font-semibold sm:text-sm">
                                   {formatHours(rowTotal)}h
                                 </td>
-                                <td className="px-2 py-1">
-                                  <div className="relative flex justify-end" data-row-action-menu>
-                                    <div
-                                      className={cn(
-                                        "flex items-center gap-1 rounded-lg bg-white/95 p-1 shadow-sm transition",
-                                        "pointer-events-none opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100",
-                                        "group-focus-within/row:pointer-events-auto group-focus-within/row:opacity-100",
-                                      )}
-                                    >
-                                      <button
-                                        type="button"
-                                        className={iconButtonClass()}
-                                        onClick={() => {
-                                          setFocusedRowId(row.id);
-                                          fillWholeRow(row.id);
-                                        }}
-                                        title="Fill week from focused day"
-                                        aria-label="Fill week"
-                                      >
-                                        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" aria-hidden>
-                                          <path
-                                            d="M3 8a5 5 0 0 1 8.5-3.5M12 2.5V5h-2.5"
-                                            stroke="currentColor"
-                                            strokeWidth="1.3"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                          />
-                                          <path
-                                            d="M13 8a5 5 0 0 1-8.5 3.5M4 13.5V11h2.5"
-                                            stroke="currentColor"
-                                            strokeWidth="1.3"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                          />
-                                        </svg>
-                                      </button>
-
-                                      <button
-                                        type="button"
-                                        className={iconButtonClass()}
-                                        onClick={() => {
-                                          setFocusedRowId(row.id);
-                                          setOpenActionMenuRowId((current) =>
-                                            current === row.id ? null : row.id,
-                                          );
-                                        }}
-                                        title="More actions"
-                                        aria-label="More actions"
-                                      >
-                                        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden>
-                                          <circle cx="3" cy="8" r="1.2" />
-                                          <circle cx="8" cy="8" r="1.2" />
-                                          <circle cx="13" cy="8" r="1.2" />
-                                        </svg>
-                                      </button>
-                                    </div>
-
-                                    {openActionMenuRowId === row.id && (
-                                      <div className="absolute right-0 top-8 z-20 w-40 rounded-lg border border-[var(--color-border)] bg-white p-1 shadow-lg">
-                                        <button
-                                          type="button"
-                                          className="w-full rounded-md px-2 py-1.5 text-left text-xs text-[var(--color-text-soft)] transition hover:bg-[var(--color-panel-strong)]"
-                                          onClick={() => fillPreviousValues(row.id)}
-                                        >
-                                          Fill Previous
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="w-full rounded-md px-2 py-1.5 text-left text-xs text-[var(--color-text-soft)] transition hover:bg-[var(--color-panel-strong)]"
-                                          onClick={() => duplicateRow(row.id)}
-                                        >
-                                          Duplicate
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="w-full rounded-md px-2 py-1.5 text-left text-xs text-[var(--color-danger)] transition hover:bg-[rgba(180,83,77,0.12)]"
-                                          onClick={() => deleteRow(row.id)}
-                                        >
-                                          Delete
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
+                                <td className="px-2 py-1 text-right">
+                                  <button
+                                    type="button"
+                                    className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--color-border)] bg-white text-[var(--color-text-soft)] shadow-[0_1px_2px_rgba(10,20,35,0.05)] transition hover:border-[var(--color-danger)] hover:bg-[var(--color-danger)] hover:text-white hover:shadow-[0_4px_12px_rgba(180,83,77,0.42)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-danger)]"
+                                    onClick={() => deleteRow(row.id)}
+                                    aria-label="Delete row"
+                                    title="Delete row"
+                                  >
+                                    <svg viewBox="0 0 16 16" className="h-6 w-6" fill="none" aria-hidden>
+                                      <path
+                                        d="M2.5 4h11M6 2.5h4M5 4v8.5c0 .55.45 1 1 1h4c.55 0 1-.45 1-1V4"
+                                        stroke="currentColor"
+                                        strokeWidth="1.3"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      />
+                                      <path d="M7 6.5v4.5M9 6.5v4.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                                    </svg>
+                                  </button>
                                 </td>
                               </tr>
                             );
