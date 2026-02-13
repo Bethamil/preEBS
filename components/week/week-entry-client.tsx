@@ -808,9 +808,17 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   };
 
   const deleteRow = (rowId: string) => {
-    const confirmed = window.confirm("Delete this row?");
-    if (!confirmed) {
+    const rowToDelete = rows.find((row) => row.id === rowId);
+    if (!rowToDelete) {
       return;
+    }
+
+    const hasRegisteredHours = rowToDelete.hours.some((hours) => hours > 0);
+    if (hasRegisteredHours) {
+      const confirmed = window.confirm("Delete this task with registered hours?");
+      if (!confirmed) {
+        return;
+      }
     }
 
     setRows((current) => current.filter((row) => row.id !== rowId));
@@ -1214,8 +1222,8 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
             status,
           } = summary;
           const isExpanded = effectiveOpenProjectIds.includes(projectId);
-          const rowCount = projectRows.length;
           const visibleRowCount = visibleProjectRows.length;
+          const visibleTaskCount = new Set(visibleProjectRows.map((row) => row.taskId)).size;
 
           return (
             <section
@@ -1266,15 +1274,15 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                     </div>
                   )}
                   <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-                    {formatHours(total)}h total · {rowCount} row{rowCount === 1 ? "" : "s"} · {taskCount} task
-                    {taskCount === 1 ? "" : "s"}
-                    {hasRowSearch && ` · Showing ${visibleRowCount}`}
+                    {formatHours(total)}h total · {taskCount} task{taskCount === 1 ? "" : "s"}
+                    {hasRowSearch &&
+                      ` · Showing ${visibleTaskCount} task${visibleTaskCount === 1 ? "" : "s"}`}
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <Button size="sm" variant="secondary" onClick={() => addRow({ overrideProjectId: projectId })}>
-                    Add Row
+                    Add Task
                   </Button>
                   {isCustom && (
                     <Button
@@ -1502,7 +1510,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                                   {formatHours(rowTotal)}h
                                 </td>
                                 <td className="px-2 py-1 text-right">
-                                  <DeleteIconButton label="Delete row" onClick={() => deleteRow(row.id)} />
+                                  <DeleteIconButton label="Delete task" onClick={() => deleteRow(row.id)} />
                                 </td>
                               </tr>
                             );
