@@ -30,6 +30,7 @@ Why this pattern:
 
 - Copy previous week
 - Add same hours to existing row
+- Add custom projects directly in week entry (with free-text tasks for custom rows)
 - Clear day (per weekday)
 - Searchable quick-add combos (project/task/hour type in one action)
 - Simple per-row delete action

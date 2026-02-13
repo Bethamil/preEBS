@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -22,7 +21,7 @@ import {
   getWeekDates,
 } from "@/lib/date";
 import type { RecentCombo, UserConfig, WeekDocument, WeekRowInput } from "@/lib/types";
-import { clampHours, cn, formatHours, parseNumberInput } from "@/lib/utils";
+import { clampHours, cn, formatHours, parseNumberInput, safeTrim } from "@/lib/utils";
 
 const PROJECT_ACCENT_COLORS = [
   "#1D6070",
@@ -45,8 +44,11 @@ interface WeekEditorResponse {
 interface LocalRow {
   id: string;
   projectId: string;
+  projectName: string;
   taskId: string;
+  taskName: string;
   hourTypeId: string;
+  hourTypeName: string;
   hours: number[];
   note?: string;
 }
@@ -64,6 +66,20 @@ interface ComboOption extends RecentCombo {
   label: string;
   searchText: string;
   isRecent: boolean;
+}
+
+interface ProjectSummary {
+  projectId: string;
+  projectName: string;
+  configProject: UserConfig["projects"][number] | null;
+  isCustom: boolean;
+  accentColor: string;
+  projectRows: LocalRow[];
+  visibleProjectRows: LocalRow[];
+  totalsByDay: number[];
+  total: number;
+  taskCount: number;
+  status: "ok" | "warning";
 }
 
 type SaveState = "idle" | "saving" | "saved" | "error";
@@ -87,8 +103,11 @@ function toLocalRows(week: WeekDocument): LocalRow[] {
   return week.rows.map((row) => ({
     id: row.id,
     projectId: row.projectId,
+    projectName: row.projectName,
     taskId: row.taskId,
+    taskName: row.taskName,
     hourTypeId: row.hourTypeId,
+    hourTypeName: row.hourTypeName,
     hours: Array.from({ length: WEEKDAY_COUNT }, (_, index) => clampHours(row.hours[index] ?? 0)),
     note: row.note,
   }));
@@ -107,8 +126,11 @@ function toPayload(rows: LocalRow[]): WeekRowInput[] {
   return rows.map((row) => ({
     id: row.id,
     projectId: row.projectId,
+    projectName: row.projectName,
     taskId: row.taskId,
+    taskName: row.taskName,
     hourTypeId: row.hourTypeId,
+    hourTypeName: row.hourTypeName,
     hours: row.hours.map((hours) => clampHours(hours)),
     note: row.note,
   }));
@@ -161,7 +183,26 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStartDate]);
 
-  const projects = config?.projects ?? [];
+  const configProjects = config?.projects ?? [];
+  const configuredProjectIdSet = useMemo(
+    () => new Set(configProjects.map((project) => project.id)),
+    [configProjects],
+  );
+  const customProjectIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          rows
+            .map((row) => row.projectId)
+            .filter((projectId) => !configuredProjectIdSet.has(projectId)),
+        ),
+      ),
+    [rows, configuredProjectIdSet],
+  );
+  const allProjectIds = useMemo(
+    () => [...configProjects.map((project) => project.id), ...customProjectIds],
+    [configProjects, customProjectIds],
+  );
 
   const rememberEditedProject = (projectId: string) => {
     setOpenProjectIds((current) => (current.includes(projectId) ? current : [...current, projectId]));
@@ -177,15 +218,14 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   };
 
   useEffect(() => {
-    if (projects.length === 0) {
+    if (allProjectIds.length === 0) {
       setOpenProjectIds((current) => (current.length === 0 ? current : []));
       return;
     }
 
     setOpenProjectIds((current) => {
-      const validCurrent = current.filter((projectId) =>
-        projects.some((project) => project.id === projectId),
-      );
+      const validIds = new Set(allProjectIds);
+      const validCurrent = current.filter((projectId) => validIds.has(projectId));
       const unchanged =
         validCurrent.length === current.length &&
         validCurrent.every((projectId, index) => projectId === current[index]);
@@ -194,10 +234,10 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       }
       return validCurrent;
     });
-  }, [projects]);
+  }, [allProjectIds]);
 
   const defaultSelection = useMemo(() => {
-    const fallbackProject = projects[0];
+    const fallbackProject = configProjects[0];
     const fallbackTask = fallbackProject?.tasks[0];
     const fallbackHourType = fallbackTask?.hourTypes[0];
 
@@ -206,12 +246,12 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       taskId: fallbackTask?.id,
       hourTypeId: fallbackHourType?.id,
     };
-  }, [projects]);
+  }, [configProjects]);
 
   const shouldShowHourType = useMemo(() => {
     const normalizedHourTypeNames = new Set<string>();
 
-    for (const project of projects) {
+    for (const project of configProjects) {
       for (const task of project.tasks) {
         if (task.hourTypes.length !== 1) {
           return true;
@@ -222,8 +262,18 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       }
     }
 
+    for (const row of rows) {
+      const normalizedName = row.hourTypeName.trim().toLowerCase();
+      if (normalizedName) {
+        normalizedHourTypeNames.add(normalizedName);
+      }
+      if (normalizedHourTypeNames.size > 1) {
+        return true;
+      }
+    }
+
     return normalizedHourTypeNames.size > 1;
-  }, [projects]);
+  }, [configProjects, rows]);
 
   useEffect(() => {
     const listener = (event: KeyboardEvent) => {
@@ -263,7 +313,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     const taskMap = new Map<string, string>();
     const hourTypeMap = new Map<string, string>();
 
-    for (const project of projects) {
+    for (const project of configProjects) {
       projectMap.set(project.id, project.name);
       for (const task of project.tasks) {
         taskMap.set(task.id, task.name);
@@ -273,8 +323,20 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       }
     }
 
+    for (const row of rows) {
+      if (row.projectName) {
+        projectMap.set(row.projectId, row.projectName);
+      }
+      if (row.taskName) {
+        taskMap.set(row.taskId, row.taskName);
+      }
+      if (row.hourTypeName) {
+        hourTypeMap.set(row.hourTypeId, row.hourTypeName);
+      }
+    }
+
     return { projectMap, taskMap, hourTypeMap };
-  }, [projects]);
+  }, [configProjects, rows]);
 
   const visibleRows = useMemo(() => {
     const query = rowSearch.trim().toLowerCase();
@@ -370,29 +432,27 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       : "over";
 
   const projectSummaries = useMemo(() => {
-    const summaries = [] as Array<{
-      project: UserConfig["projects"][number];
-      accentColor: string;
-      projectRows: LocalRow[];
-      visibleProjectRows: LocalRow[];
-      totalsByDay: number[];
-      total: number;
-      taskCount: number;
-      status: "ok" | "warning";
-    }>;
+    const summaries: ProjectSummary[] = [];
 
-    for (let index = 0; index < projects.length; index += 1) {
-      const project = projects[index];
-      const projectRows = rows.filter((row) => row.projectId === project.id);
-      const visibleProjectRows = visibleRows.filter((row) => row.projectId === project.id);
+    for (let index = 0; index < allProjectIds.length; index += 1) {
+      const projectId = allProjectIds[index];
+      const configProject = configProjects.find((project) => project.id === projectId) ?? null;
+      const projectRows = rows.filter((row) => row.projectId === projectId);
+      const visibleProjectRows = visibleRows.filter((row) => row.projectId === projectId);
       const totals = Array.from({ length: WEEKDAY_COUNT }, (_, dayIndex) =>
         projectRows.reduce((sum, row) => sum + (row.hours[dayIndex] ?? 0), 0),
       );
       const total = totals.reduce((sum, value) => sum + value, 0);
       const taskCount = new Set(projectRows.map((row) => row.taskId)).size;
+      const latestProjectName = [...projectRows]
+        .reverse()
+        .find((row) => safeTrim(row.projectName).length > 0)?.projectName;
 
       summaries.push({
-        project,
+        projectId,
+        projectName: configProject?.name ?? latestProjectName ?? "Custom Project",
+        configProject,
+        isCustom: !configProject,
         accentColor: PROJECT_ACCENT_COLORS[index % PROJECT_ACCENT_COLORS.length],
         projectRows,
         visibleProjectRows,
@@ -406,7 +466,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     }
 
     return summaries;
-  }, [projects, rows, visibleRows, maxHoursPerDay]);
+  }, [allProjectIds, configProjects, rows, visibleRows, maxHoursPerDay]);
 
   const comboOptions = useMemo(() => {
     const recentKeys = new Set(
@@ -415,7 +475,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
 
     const options: ComboOption[] = [];
 
-    for (const project of projects) {
+    for (const project of configProjects) {
       for (const task of project.tasks) {
         for (const hourType of task.hourTypes) {
           const isRecent = recentKeys.has(comboKey(project.id, task.id, hourType.id));
@@ -447,7 +507,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       }
       return left.label.localeCompare(right.label);
     });
-  }, [projects, recentCombos, shouldShowHourType]);
+  }, [configProjects, recentCombos, shouldShowHourType]);
 
   const quickComboMatches = useMemo(() => {
     const query = quickComboSearch.trim().toLowerCase();
@@ -464,7 +524,16 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   const exceedsMax = exceededDayIndexes.length > 0;
 
   const ensureRowConsistency = (row: LocalRow): LocalRow => {
-    const project = projects.find((item) => item.id === row.projectId) ?? projects[0];
+    const project = configProjects.find((item) => item.id === row.projectId);
+    if (!project) {
+      return {
+        ...row,
+        projectName: safeTrim(row.projectName) || "Custom Project",
+        taskName: safeTrim(row.taskName) || "Task",
+        hourTypeName: safeTrim(row.hourTypeName) || DEFAULT_HOUR_TYPE_NAME,
+      };
+    }
+
     const task = project?.tasks.find((item) => item.id === row.taskId) ?? project?.tasks[0];
     const hourType =
       task?.hourTypes.find((item) => item.id === row.hourTypeId) ??
@@ -474,19 +543,54 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     return {
       ...row,
       projectId: project?.id ?? row.projectId,
+      projectName: project?.name ?? row.projectName,
       taskId: task?.id ?? row.taskId,
+      taskName: task?.name ?? row.taskName,
       hourTypeId: hourType?.id ?? row.hourTypeId,
+      hourTypeName: hourType?.name ?? row.hourTypeName,
     };
   };
 
   const addRow = (options?: AddRowOptions) => {
-    if (!config || projects.length === 0) {
-      pushToast("Add a project in Config first.", "error");
+    if (!config) {
       return;
     }
 
     const baseProjectId = options?.overrideProjectId ?? options?.combo?.projectId ?? defaultSelection.projectId;
-    const project = projects.find((item) => item.id === baseProjectId) ?? projects[0];
+    if (baseProjectId && !configuredProjectIdSet.has(baseProjectId)) {
+      const projectName =
+        rows.find((row) => row.projectId === baseProjectId)?.projectName ?? "Custom Project";
+      const projectRowCount = rows.filter((row) => row.projectId === baseProjectId).length;
+      const customTaskId = `custom-task:${crypto.randomUUID()}`;
+      const customHourTypeId = `custom-hour-type:${crypto.randomUUID()}`;
+      const customRow: LocalRow = {
+        id: crypto.randomUUID(),
+        projectId: baseProjectId,
+        projectName,
+        taskId: customTaskId,
+        taskName: `Task ${projectRowCount + 1}`,
+        hourTypeId: customHourTypeId,
+        hourTypeName: DEFAULT_HOUR_TYPE_NAME,
+        hours: [0, 0, 0, 0, 0],
+      };
+
+      rememberEditedProject(baseProjectId);
+      setRows((current) => [...current, customRow]);
+      window.setTimeout(() => {
+        const key = `${customRow.id}:0`;
+        const input = inputRefs.current.get(key);
+        input?.focus();
+        input?.select();
+      }, 10);
+      return;
+    }
+
+    if (configProjects.length === 0) {
+      pushToast("No configured projects. Add a custom project instead.", "error");
+      return;
+    }
+
+    const project = configProjects.find((item) => item.id === baseProjectId) ?? configProjects[0];
     if (project.tasks.length === 0) {
       pushToast("This project has no task yet. Add one in Config.", "error");
       return;
@@ -573,8 +677,11 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     const nextRow: LocalRow = {
       id: crypto.randomUUID(),
       projectId: project.id,
+      projectName: project.name,
       taskId: selectedTask.id,
+      taskName: selectedTask.name,
       hourTypeId: selectedHourType.id,
+      hourTypeName: selectedHourType.name,
       hours,
     };
 
@@ -584,6 +691,36 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
 
     window.setTimeout(() => {
       const key = `${normalizedNextRow.id}:${presetDayIndex}`;
+      const input = inputRefs.current.get(key);
+      input?.focus();
+      input?.select();
+    }, 10);
+  };
+
+  const addCustomProjectRow = () => {
+    const customProjectCount = rows.filter((row) => row.projectId.startsWith("custom-project:")).length;
+    const projectName = customProjectCount === 0 ? "Custom Project" : `Custom Project ${customProjectCount + 1}`;
+    const taskName = "Task";
+
+    const projectId = `custom-project:${crypto.randomUUID()}`;
+    const taskId = `custom-task:${crypto.randomUUID()}`;
+    const hourTypeId = `custom-hour-type:${crypto.randomUUID()}`;
+    const nextRow: LocalRow = {
+      id: crypto.randomUUID(),
+      projectId,
+      projectName,
+      taskId,
+      taskName,
+      hourTypeId,
+      hourTypeName: DEFAULT_HOUR_TYPE_NAME,
+      hours: [0, 0, 0, 0, 0],
+    };
+
+    rememberEditedProject(projectId);
+    setRows((current) => [...current, nextRow]);
+
+    window.setTimeout(() => {
+      const key = `${nextRow.id}:0`;
       const input = inputRefs.current.get(key);
       input?.focus();
       input?.select();
@@ -626,6 +763,13 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     }
   };
 
+  const updateCustomProjectName = (projectId: string, projectName: string) => {
+    rememberEditedProject(projectId);
+    setRows((current) =>
+      current.map((row) => (row.projectId === projectId ? { ...row, projectName } : row)),
+    );
+  };
+
   const deleteRow = (rowId: string) => {
     const confirmed = window.confirm("Delete this row?");
     if (!confirmed) {
@@ -633,6 +777,16 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     }
 
     setRows((current) => current.filter((row) => row.id !== rowId));
+  };
+
+  const deleteCustomProject = (projectId: string) => {
+    const confirmed = window.confirm("Delete this custom project and all its rows?");
+    if (!confirmed) {
+      return;
+    }
+
+    setRows((current) => current.filter((row) => row.projectId !== projectId));
+    pushToast("Custom project deleted.", "info");
   };
 
   const clearDay = (dayIndex: number) => {
@@ -784,20 +938,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     return <p className="text-sm text-[var(--color-text-muted)]">Loading week editor...</p>;
   }
 
-  if (config.projects.length === 0) {
-    return (
-      <Card className="p-8 text-center">
-        <h1 className="text-2xl font-semibold">Week Entry</h1>
-        <p className="mx-auto mt-2 max-w-lg text-sm text-[var(--color-text-muted)]">
-          Configure at least one project and task first. Then this grid becomes the fastest
-          five-day ritual in your calendar.
-        </p>
-        <Link href="/config" className="mt-6 inline-block">
-          <Button>Go To Config</Button>
-        </Link>
-      </Card>
-    );
-  }
+  const hasConfigProjects = configProjects.length > 0;
 
   return (
     <section className="space-y-4 pb-28">
@@ -841,6 +982,9 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={addCustomProjectRow}>
+              Add Project
+            </Button>
             <Button variant="secondary" size="sm" onClick={copyPrevious}>
               Copy Previous
             </Button>
@@ -881,6 +1025,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
               <Input
                 ref={quickComboSearchInputRef}
                 value={quickComboSearch}
+                disabled={!hasConfigProjects}
                 className="h-11 rounded-xl border-[var(--color-border)] bg-[var(--color-panel-strong)] pl-9 pr-16 text-sm shadow-none"
                 onChange={(event) => setQuickComboSearch(event.target.value)}
                 onKeyDown={(event) => {
@@ -896,7 +1041,9 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                   quickAddFromCombo(firstMatch);
                 }}
                 placeholder={
-                  shouldShowHourType
+                  !hasConfigProjects
+                    ? "Configure projects to use quick add"
+                    : shouldShowHourType
                     ? "Search project, task, or hour type..."
                     : "Search project or task..."
                 }
@@ -910,7 +1057,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {quickComboMatches.slice(0, 6).map((combo) => (
+            {hasConfigProjects && quickComboMatches.slice(0, 6).map((combo) => (
               <button
                 key={comboKey(combo.projectId, combo.taskId, combo.hourTypeId)}
                 type="button"
@@ -926,7 +1073,12 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                 <span className="truncate">{combo.label}</span>
               </button>
             ))}
-            {quickComboMatches.length === 0 && (
+            {!hasConfigProjects && (
+              <p className="text-xs text-[var(--color-text-muted)]">
+                Quick add shows configured combos. Add projects in Config first.
+              </p>
+            )}
+            {hasConfigProjects && quickComboMatches.length === 0 && (
               <p className="text-xs text-[var(--color-text-muted)]">No combo matches this search.</p>
             )}
           </div>
@@ -997,58 +1149,103 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       </Card>
 
       <div className="space-y-3">
+        {projectSummaries.length === 0 && (
+          <Card className="p-6 text-center">
+            <p className="text-sm text-[var(--color-text-muted)]">
+              No rows yet. Add a configured row or a custom project to start this week.
+            </p>
+          </Card>
+        )}
         {projectSummaries.map((summary) => {
-          const { project, accentColor, projectRows, visibleProjectRows, totalsByDay: projectTotalsByDay, total, taskCount, status } = summary;
-          const isExpanded = effectiveOpenProjectIds.includes(project.id);
+          const {
+            projectId,
+            projectName,
+            configProject,
+            isCustom,
+            accentColor,
+            projectRows,
+            visibleProjectRows,
+            totalsByDay: projectTotalsByDay,
+            total,
+            taskCount,
+            status,
+          } = summary;
+          const isExpanded = effectiveOpenProjectIds.includes(projectId);
           const rowCount = projectRows.length;
           const visibleRowCount = visibleProjectRows.length;
 
           return (
             <section
-              key={project.id}
+              key={projectId}
               className="rounded-2xl border border-[var(--color-border)] bg-white"
               style={{ borderLeftColor: accentColor, borderLeftWidth: "4px" }}
             >
               <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] px-3 py-3">
-                <button
-                  type="button"
-                  className="min-w-0 flex-1 text-left"
-                  onClick={() => toggleProjectOpen(project.id)}
-                  aria-expanded={isExpanded}
-                >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="h-2.5 w-2.5 rounded-full"
-                      style={{ backgroundColor: accentColor }}
-                      aria-hidden
-                    />
-                    <h3 className="truncate text-base font-semibold">{project.name}</h3>
-                    <span
-                      className={cn(
-                        "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]",
-                        status === "warning"
-                          ? "border-amber-300 bg-amber-50 text-amber-900"
-                          : "border-emerald-200 bg-emerald-50 text-emerald-800",
+                <div className="min-w-0 flex-1">
+                  <button
+                    type="button"
+                    className="w-full min-w-0 text-left"
+                    onClick={() => toggleProjectOpen(projectId)}
+                    aria-expanded={isExpanded}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: accentColor }}
+                        aria-hidden
+                      />
+                      <h3 className="truncate text-base font-semibold">{projectName}</h3>
+                      {isCustom && (
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-700">
+                          Custom
+                        </span>
                       )}
-                    >
-                      {status === "warning" ? "Warning" : "OK"}
-                    </span>
-                  </div>
+                      <span
+                        className={cn(
+                          "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]",
+                          status === "warning"
+                            ? "border-amber-300 bg-amber-50 text-amber-900"
+                            : "border-emerald-200 bg-emerald-50 text-emerald-800",
+                        )}
+                      >
+                        {status === "warning" ? "Warning" : "OK"}
+                      </span>
+                    </div>
+                  </button>
+                  {isCustom && (
+                    <div className="mt-2 max-w-xs">
+                      <Input
+                        aria-label="Custom project name"
+                        value={projectName}
+                        onChange={(event) => updateCustomProjectName(projectId, event.target.value)}
+                        className="h-9 rounded-lg px-2 text-sm"
+                      />
+                    </div>
+                  )}
                   <p className="mt-1 text-xs text-[var(--color-text-muted)]">
                     {formatHours(total)}h total · {rowCount} row{rowCount === 1 ? "" : "s"} · {taskCount} task
                     {taskCount === 1 ? "" : "s"}
                     {hasRowSearch && ` · Showing ${visibleRowCount}`}
                   </p>
-                </button>
+                </div>
 
                 <div className="flex items-center gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => addRow({ overrideProjectId: project.id })}>
+                  <Button size="sm" variant="secondary" onClick={() => addRow({ overrideProjectId: projectId })}>
                     Add Row
                   </Button>
+                  {isCustom && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => deleteCustomProject(projectId)}
+                    >
+                      Delete Project
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => toggleProjectOpen(project.id)}
+                    onClick={() => toggleProjectOpen(projectId)}
                   >
                     {isExpanded ? "Collapse" : "Expand"}
                   </Button>
@@ -1080,7 +1277,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                             <th className="px-2 py-2 font-medium">Task</th>
                             {shouldShowHourType && <th className="px-2 py-2 font-medium">Type</th>}
                             {WEEKDAY_LABELS.map((label, index) => (
-                              <th key={`${project.id}-${label}`} className="px-1 py-2 font-medium">
+                              <th key={`${projectId}-${label}`} className="px-1 py-2 font-medium">
                                 <button
                                   type="button"
                                   className={cn(
@@ -1100,12 +1297,13 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                         </thead>
                         <tbody>
                           {visibleProjectRows.map((row) => {
-                            const task = project.tasks.find((item) => item.id === row.taskId) ?? project.tasks[0];
+                            const configuredTask = configProject?.tasks.find((item) => item.id === row.taskId);
+                            const task = configuredTask ?? null;
                             const hourTypes = task?.hourTypes ?? [
                               { id: DEFAULT_HOUR_TYPE_ID, name: DEFAULT_HOUR_TYPE_NAME },
                             ];
                             const selectedHourTypeName =
-                              hourTypes.find((item) => item.id === row.hourTypeId)?.name ?? "";
+                              hourTypes.find((item) => item.id === row.hourTypeId)?.name ?? row.hourTypeName;
                             const rowTotal = row.hours.reduce((sum, hours) => sum + hours, 0);
 
                             return (
@@ -1114,59 +1312,104 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                                 className="border-t border-[var(--color-border)] align-middle"
                               >
                                 <td className="px-2 py-1.5">
-                                  <Select
-                                    aria-label="Task"
-                                    title={task?.name ?? ""}
-                                    value={row.taskId}
-                                    className="h-9 rounded-lg px-2 text-sm"
-                                    onChange={(event) => {
-                                      const nextTask = project.tasks.find((item) => item.id === event.target.value);
-                                      const nextHourType =
-                                        nextTask?.hourTypes.find((type) => type.name === DEFAULT_HOUR_TYPE_NAME) ??
-                                        nextTask?.hourTypes[0];
-
-                                      updateRow(
-                                        row.id,
-                                        (current) => ({
-                                          ...current,
-                                          taskId: event.target.value,
-                                          hourTypeId: nextHourType?.id ?? current.hourTypeId,
-                                        }),
-                                        row.projectId,
-                                      );
-                                    }}
-                                  >
-                                    {project.tasks.map((taskItem) => (
-                                      <option key={taskItem.id} value={taskItem.id}>
-                                        {taskItem.name}
-                                      </option>
-                                    ))}
-                                  </Select>
-                                </td>
-                                {shouldShowHourType && (
-                                  <td className="px-2 py-1.5">
+                                  {configProject ? (
                                     <Select
-                                      aria-label="Hour Type"
-                                      title={selectedHourTypeName}
-                                      value={row.hourTypeId}
+                                      aria-label="Task"
+                                      title={task?.name ?? ""}
+                                      value={row.taskId}
                                       className="h-9 rounded-lg px-2 text-sm"
                                       onChange={(event) => {
+                                        const nextTask = configProject.tasks.find(
+                                          (item) => item.id === event.target.value,
+                                        );
+                                        const nextHourType =
+                                          nextTask?.hourTypes.find(
+                                            (type) => type.name === DEFAULT_HOUR_TYPE_NAME,
+                                          ) ?? nextTask?.hourTypes[0];
+
                                         updateRow(
                                           row.id,
                                           (current) => ({
                                             ...current,
-                                            hourTypeId: event.target.value,
+                                            taskId: event.target.value,
+                                            taskName: nextTask?.name ?? current.taskName,
+                                            hourTypeId: nextHourType?.id ?? current.hourTypeId,
+                                            hourTypeName: nextHourType?.name ?? current.hourTypeName,
                                           }),
                                           row.projectId,
                                         );
                                       }}
                                     >
-                                      {hourTypes.map((hourType) => (
-                                        <option key={hourType.id} value={hourType.id}>
-                                          {hourType.name}
+                                      {configProject.tasks.map((taskItem) => (
+                                        <option key={taskItem.id} value={taskItem.id}>
+                                          {taskItem.name}
                                         </option>
                                       ))}
                                     </Select>
+                                  ) : (
+                                    <Input
+                                      aria-label="Task"
+                                      value={row.taskName}
+                                      onChange={(event) =>
+                                        updateRow(
+                                          row.id,
+                                          (current) => ({
+                                            ...current,
+                                            taskName: event.target.value,
+                                          }),
+                                          row.projectId,
+                                        )
+                                      }
+                                      className="h-9 rounded-lg px-2 text-sm"
+                                    />
+                                  )}
+                                </td>
+                                {shouldShowHourType && (
+                                  <td className="px-2 py-1.5">
+                                    {configProject ? (
+                                      <Select
+                                        aria-label="Hour Type"
+                                        title={selectedHourTypeName}
+                                        value={row.hourTypeId}
+                                        className="h-9 rounded-lg px-2 text-sm"
+                                        onChange={(event) => {
+                                          const nextHourType = hourTypes.find(
+                                            (hourType) => hourType.id === event.target.value,
+                                          );
+                                          updateRow(
+                                            row.id,
+                                            (current) => ({
+                                              ...current,
+                                              hourTypeId: event.target.value,
+                                              hourTypeName: nextHourType?.name ?? current.hourTypeName,
+                                            }),
+                                            row.projectId,
+                                          );
+                                        }}
+                                      >
+                                        {hourTypes.map((hourType) => (
+                                          <option key={hourType.id} value={hourType.id}>
+                                            {hourType.name}
+                                          </option>
+                                        ))}
+                                      </Select>
+                                    ) : (
+                                      <Input
+                                        aria-label="Hour Type"
+                                        value={row.hourTypeName}
+                                        onChange={(event) =>
+                                          updateRow(
+                                            row.id,
+                                            (current) => ({
+                                              ...current,
+                                              hourTypeName: event.target.value,
+                                            }),
+                                            row.projectId,
+                                          )
+                                        }
+                                        className="h-9 rounded-lg px-2 text-sm"
+                                      />
+                                    )}
                                   </td>
                                 )}
                                 {Array.from({ length: WEEKDAY_COUNT }, (_, dayIndex) => (
@@ -1229,7 +1472,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                             </td>
                             {projectTotalsByDay.map((value, index) => (
                               <td
-                                key={`${project.id}-project-total-${index}`}
+                                key={`${projectId}-project-total-${index}`}
                                 className="px-1 py-2 text-center font-mono"
                               >
                                 {formatHours(value)}

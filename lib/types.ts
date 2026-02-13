@@ -55,8 +55,11 @@ export interface WeekDocument {
 export interface WeekRowInput {
   id?: string;
   projectId: string;
+  projectName?: string;
   taskId: string;
+  taskName?: string;
   hourTypeId: string;
+  hourTypeName?: string;
   hours: number[];
   note?: string;
 }

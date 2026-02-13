@@ -213,34 +213,69 @@ function buildRowNameMaps(config: UserConfig): {
   projectMap: Map<string, { id: string; name: string }>;
   taskMap: Map<string, { id: string; name: string }>;
   hourTypeMap: Map<string, { id: string; name: string }>;
+  taskIdsByProject: Map<string, Set<string>>;
+  hourTypeIdsByTask: Map<string, Set<string>>;
 } {
   const projectMap = new Map<string, { id: string; name: string }>();
   const taskMap = new Map<string, { id: string; name: string }>();
   const hourTypeMap = new Map<string, { id: string; name: string }>();
+  const taskIdsByProject = new Map<string, Set<string>>();
+  const hourTypeIdsByTask = new Map<string, Set<string>>();
 
   for (const project of config.projects) {
     projectMap.set(project.id, { id: project.id, name: project.name });
+    taskIdsByProject.set(project.id, new Set(project.tasks.map((task) => task.id)));
     for (const task of project.tasks) {
       taskMap.set(task.id, { id: task.id, name: task.name });
+      hourTypeIdsByTask.set(task.id, new Set(task.hourTypes.map((hourType) => hourType.id)));
       for (const hourType of task.hourTypes) {
         hourTypeMap.set(hourType.id, { id: hourType.id, name: hourType.name });
       }
     }
   }
 
-  return { projectMap, taskMap, hourTypeMap };
+  return {
+    projectMap,
+    taskMap,
+    hourTypeMap,
+    taskIdsByProject,
+    hourTypeIdsByTask,
+  };
 }
 
 function normalizeWeekRows(rows: WeekRowInput[], config: UserConfig): WeekDocument["rows"] {
-  const { projectMap, taskMap, hourTypeMap } = buildRowNameMaps(config);
+  const {
+    projectMap,
+    taskMap,
+    hourTypeMap,
+    taskIdsByProject,
+    hourTypeIdsByTask,
+  } = buildRowNameMaps(config);
 
   const normalizedRows = rows
     .map((row) => {
-      const projectRef = projectMap.get(row.projectId);
-      const taskRef = taskMap.get(row.taskId);
-      const hourTypeRef = hourTypeMap.get(row.hourTypeId);
+      const projectId = safeTrim(row.projectId);
+      const taskId = safeTrim(row.taskId);
+      const hourTypeId = safeTrim(row.hourTypeId);
+      if (!projectId || !taskId || !hourTypeId) {
+        return null;
+      }
 
-      if (!projectRef || !taskRef || !hourTypeRef) {
+      const projectRef = projectMap.get(projectId);
+      const taskRef = taskMap.get(taskId);
+      const hourTypeRef = hourTypeMap.get(hourTypeId);
+      const isKnownConfigCombo = Boolean(
+        projectRef &&
+          taskRef &&
+          hourTypeRef &&
+          taskIdsByProject.get(projectId)?.has(taskId) &&
+          hourTypeIdsByTask.get(taskId)?.has(hourTypeId),
+      );
+
+      const projectName = isKnownConfigCombo ? projectRef?.name ?? "" : safeTrim(row.projectName ?? "");
+      const taskName = isKnownConfigCombo ? taskRef?.name ?? "" : safeTrim(row.taskName ?? "");
+      const hourTypeName = isKnownConfigCombo ? hourTypeRef?.name ?? "" : safeTrim(row.hourTypeName ?? "");
+      if (!projectName || !taskName || !hourTypeName) {
         return null;
       }
 
@@ -250,12 +285,12 @@ function normalizeWeekRows(rows: WeekRowInput[], config: UserConfig): WeekDocume
 
       return {
         id: row.id || randomUUID(),
-        projectId: row.projectId,
-        projectName: projectRef.name,
-        taskId: row.taskId,
-        taskName: taskRef.name,
-        hourTypeId: row.hourTypeId,
-        hourTypeName: hourTypeRef.name,
+        projectId,
+        projectName,
+        taskId,
+        taskName,
+        hourTypeId,
+        hourTypeName,
         hours,
         note: row.note ? safeTrim(row.note) : undefined,
       };
