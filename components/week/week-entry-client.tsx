@@ -1109,7 +1109,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
             <div
               key={label}
               className={cn(
-                "flex items-center justify-between rounded-xl border px-2.5 py-2",
+                "flex cursor-pointer items-center justify-between rounded-xl border px-2.5 py-2 transition hover:border-[var(--color-ring)]",
                 exceededDayIndexSet.has(index)
                   ? "border-red-300 bg-red-50"
                   : exactDayIndexSet.has(index)
@@ -1117,22 +1117,31 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                     : "border-[var(--color-border)] bg-white",
                 focusedDayIndex === index && "ring-2 ring-[var(--color-ring)]",
               )}
+              role="button"
+              tabIndex={0}
+              onClick={() => setFocusedDayIndex(index)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") {
+                  return;
+                }
+                event.preventDefault();
+                setFocusedDayIndex(index);
+              }}
+              aria-label={`Focus ${label}`}
             >
-              <button
-                type="button"
-                className="text-left"
-                onClick={() => setFocusedDayIndex(index)}
-                aria-label={`Focus ${label}`}
-              >
+              <div className="text-left">
                 <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">{label}</p>
                 <p className="text-xs font-semibold">{formatHours(totalsByDay[index])}h</p>
                 <p className="text-[11px] text-[var(--color-text-muted)]">Max {formatHours(maxHoursPerDay[index])}h</p>
                 <p className="text-[11px] text-[var(--color-text-muted)]">{formatDateLabel(weekDates[index])}</p>
-              </button>
+              </div>
               <button
                 type="button"
                 className="rounded-md border border-[var(--color-border)] px-2 py-1 text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-muted)] transition hover:bg-[var(--color-panel-strong)]"
-                onClick={() => clearDay(index)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  clearDay(index);
+                }}
                 aria-label={`Clear ${label}`}
                 title={`Clear ${label}`}
               >
