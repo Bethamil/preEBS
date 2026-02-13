@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { DeleteIconButton } from "@/components/ui/delete-icon-button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
@@ -59,7 +60,6 @@ interface AddRowOptions {
   overrideHourTypeId?: string;
   presetDayIndex?: number;
   presetHours?: number;
-  fillWholeWeek?: boolean;
 }
 
 interface ComboOption extends RecentCombo {
@@ -168,7 +168,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   const [focusedDayIndex, setFocusedDayIndex] = useState<number | null>(0);
   const [rowSearch, setRowSearch] = useState("");
   const [openProjectIds, setOpenProjectIds] = useState<string[]>([]);
-  const [compactMode, setCompactMode] = useState(false);
 
   const [quickProjectId, setQuickProjectId] = useState("");
   const [quickTaskId, setQuickTaskId] = useState("");
@@ -423,25 +422,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     [rows],
   );
 
-  const weekTotal = useMemo(() => totalsByDay.reduce((sum, value) => sum + value, 0), [totalsByDay]);
-
-  const visibleTotalsByDay = useMemo(
-    () =>
-      Array.from({ length: WEEKDAY_COUNT }, (_, dayIndex) =>
-        visibleRows.reduce((sum, row) => sum + (row.hours[dayIndex] ?? 0), 0),
-      ),
-    [visibleRows],
-  );
-
-  const visibleWeekTotal = useMemo(
-    () => visibleTotalsByDay.reduce((sum, value) => sum + value, 0),
-    [visibleTotalsByDay],
-  );
   const maxHoursPerDay = config?.maxHoursPerDay ?? Array.from({ length: WEEKDAY_COUNT }, () => 0);
-  const configuredWeekMax = useMemo(
-    () => maxHoursPerDay.reduce((sum, value) => sum + value, 0),
-    [maxHoursPerDay],
-  );
   const exceededDayIndexes = useMemo(
     () =>
       totalsByDay.reduce<number[]>((indices, total, dayIndex) => {
@@ -564,7 +545,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   }, [comboOptions, quickComboSearch]);
 
   const exceedsMax = exceededDayIndexes.length > 0;
-  const utilizationPercent = Math.min(100, Math.round((weekTotal / Math.max(configuredWeekMax, 1)) * 100));
 
   const ensureRowConsistency = (row: LocalRow): LocalRow => {
     const project = projects.find((item) => item.id === row.projectId) ?? projects[0];
@@ -612,13 +592,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     const presetDayIndex = options?.presetDayIndex ?? 0;
 
     if (presetHours > 0) {
-      if (options?.fillWholeWeek) {
-        for (let index = 0; index < WEEKDAY_COUNT; index += 1) {
-          hours[index] = presetHours;
-        }
-      } else {
-        hours[presetDayIndex] = presetHours;
-      }
+      hours[presetDayIndex] = presetHours;
     }
 
     const nextRow: LocalRow = {
@@ -649,9 +623,8 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       );
     }
 
-    const focusDay = options?.fillWholeWeek ? 0 : presetDayIndex;
     window.setTimeout(() => {
-      const key = `${existing?.id ?? normalizedNextRow.id}:${focusDay}`;
+      const key = `${existing?.id ?? normalizedNextRow.id}:${presetDayIndex}`;
       const input = inputRefs.current.get(key);
       input?.focus();
       input?.select();
@@ -787,7 +760,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     pushToast("Export complete.", "success");
   };
 
-  const quickAdd = (fillWholeWeek: boolean) => {
+  const quickAdd = () => {
     const parsedHours = clampHours(parseNumberInput(quickHours));
 
     addRow({
@@ -796,7 +769,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       overrideHourTypeId: quickHourTypeId,
       presetDayIndex: quickDayIndex,
       presetHours: parsedHours,
-      fillWholeWeek,
     });
   };
 
@@ -812,7 +784,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       overrideHourTypeId: combo.hourTypeId,
       presetDayIndex: quickDayIndex,
       presetHours: 0,
-      fillWholeWeek: false,
     });
   };
 
@@ -990,7 +961,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {quickComboMatches.slice(0, compactMode ? 4 : 6).map((combo) => (
+            {quickComboMatches.slice(0, 6).map((combo) => (
               <button
                 key={comboKey(combo.projectId, combo.taskId, combo.hourTypeId)}
                 type="button"
@@ -1016,8 +987,8 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
           className={cn(
             "mt-4 grid gap-2 sm:grid-cols-2",
             shouldShowHourType
-              ? "lg:grid-cols-[1.15fr_1.15fr_1.15fr_0.8fr_0.65fr_auto_auto_auto]"
-              : "lg:grid-cols-[1.25fr_1.25fr_0.8fr_0.65fr_auto_auto_auto]",
+              ? "lg:grid-cols-[1.15fr_1.15fr_1.15fr_0.8fr_0.65fr_auto]"
+              : "lg:grid-cols-[1.25fr_1.25fr_0.8fr_0.65fr_auto]",
           )}
         >
           <label className="space-y-1">
@@ -1093,25 +1064,8 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
           </label>
 
           <div className="self-end">
-            <Button className="w-full" size="sm" onClick={() => quickAdd(false)}>
+            <Button className="w-full" size="sm" onClick={quickAdd}>
               Add Row
-            </Button>
-          </div>
-
-          <div className="self-end">
-            <Button variant="secondary" className="w-full" size="sm" onClick={() => quickAdd(true)}>
-              Add + Fill
-            </Button>
-          </div>
-
-          <div className="self-end">
-            <Button
-              variant="secondary"
-              size="sm"
-              className="w-full"
-              onClick={() => setCompactMode((current) => !current)}
-            >
-              {compactMode ? "Comfort" : "Compact"}
             </Button>
           </div>
         </div>
@@ -1288,14 +1242,12 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                                 key={row.id}
                                 className="border-t border-[var(--color-border)] align-middle"
                               >
-                                <td className={cn("px-2", compactMode ? "py-1" : "py-1.5")}>
+                                <td className="px-2 py-1.5">
                                   <Select
                                     aria-label="Task"
                                     title={task?.name ?? ""}
                                     value={row.taskId}
-                                    className={cn(
-                                      compactMode ? "h-8 rounded-lg px-2 text-xs" : "h-9 rounded-lg px-2 text-sm",
-                                    )}
+                                    className="h-9 rounded-lg px-2 text-sm"
                                     onChange={(event) => {
                                       const nextTask = project.tasks.find((item) => item.id === event.target.value);
                                       const nextHourType =
@@ -1321,14 +1273,12 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                                   </Select>
                                 </td>
                                 {shouldShowHourType && (
-                                  <td className={cn("px-2", compactMode ? "py-1" : "py-1.5")}>
+                                  <td className="px-2 py-1.5">
                                     <Select
                                       aria-label="Hour Type"
                                       title={selectedHourTypeName}
                                       value={row.hourTypeId}
-                                      className={cn(
-                                        compactMode ? "h-8 rounded-lg px-2 text-xs" : "h-9 rounded-lg px-2 text-sm",
-                                      )}
+                                      className="h-9 rounded-lg px-2 text-sm"
                                       onChange={(event) => {
                                         updateRow(
                                           row.id,
@@ -1352,8 +1302,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                                   <td
                                     key={`${row.id}-${dayIndex}`}
                                     className={cn(
-                                      "px-1",
-                                      compactMode ? "py-1" : "py-1.5",
+                                      "px-1 py-1.5",
                                       focusedDayIndex === dayIndex && "bg-[rgba(29,96,112,0.08)]",
                                     )}
                                   >
@@ -1388,10 +1337,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                                         );
                                       }}
                                       onKeyDown={(event) => handleGridKeyDown(event, row.id, dayIndex)}
-                                      className={cn(
-                                        "w-full rounded-lg px-2 text-right font-mono",
-                                        compactMode ? "h-8 text-xs" : "h-9 text-sm",
-                                      )}
+                                      className="h-9 w-full rounded-lg px-2 text-right font-mono text-sm"
                                     />
                                   </td>
                                 ))}
@@ -1399,24 +1345,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                                   {formatHours(rowTotal)}h
                                 </td>
                                 <td className="px-2 py-1 text-right">
-                                  <button
-                                    type="button"
-                                    className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--color-border)] bg-white text-[var(--color-text-soft)] shadow-[0_1px_2px_rgba(10,20,35,0.05)] transition hover:border-[var(--color-danger)] hover:bg-[var(--color-danger)] hover:text-white hover:shadow-[0_4px_12px_rgba(180,83,77,0.42)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-danger)]"
-                                    onClick={() => deleteRow(row.id)}
-                                    aria-label="Delete row"
-                                    title="Delete row"
-                                  >
-                                    <svg viewBox="0 0 16 16" className="h-6 w-6" fill="none" aria-hidden>
-                                      <path
-                                        d="M2.5 4h11M6 2.5h4M5 4v8.5c0 .55.45 1 1 1h4c.55 0 1-.45 1-1V4"
-                                        stroke="currentColor"
-                                        strokeWidth="1.3"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                      />
-                                      <path d="M7 6.5v4.5M9 6.5v4.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-                                    </svg>
-                                  </button>
+                                  <DeleteIconButton label="Delete row" onClick={() => deleteRow(row.id)} />
                                 </td>
                               </tr>
                             );
@@ -1449,61 +1378,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
         })}
       </div>
 
-      <div className="sticky bottom-3 z-30">
-        <div className="rounded-2xl border border-[var(--color-border)] bg-white/95 p-3 shadow-lg backdrop-blur-md sm:px-4">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 xl:min-w-[33rem]">
-              {totalsByDay.map((total, index) => (
-                <div
-                  key={`global-day-total-${WEEKDAY_LABELS[index]}`}
-                  className={cn(
-                    "rounded-lg border px-2 py-1.5 text-center",
-                    exceededDayIndexSet.has(index)
-                      ? "border-red-300 bg-red-50"
-                      : exactDayIndexSet.has(index)
-                        ? "border-emerald-300 bg-emerald-50"
-                        : "border-[var(--color-border)] bg-[var(--color-panel-strong)]",
-                    focusedDayIndex === index && "ring-2 ring-[var(--color-ring)]",
-                  )}
-                >
-                  <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-                    {WEEKDAY_LABELS[index]}
-                  </p>
-                  <p className="font-mono text-xs font-semibold sm:text-sm">{formatHours(total)}h</p>
-                </div>
-              ))}
-              <div className="rounded-lg border border-[var(--color-border)] bg-white px-2 py-1.5 text-center">
-                <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">Week</p>
-                <p className="font-mono text-xs font-semibold sm:text-sm">{formatHours(weekTotal)}h</p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-              <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-panel-strong)] px-2.5 py-1 text-xs text-[var(--color-text-muted)]">
-                Save: {saveState}
-              </span>
-              <span
-                className={cn(
-                  "rounded-full border px-2.5 py-1 text-xs",
-                  exceedsMax
-                    ? "border-red-300 bg-red-50 text-red-900"
-                    : "border-emerald-200 bg-emerald-50 text-emerald-800",
-                )}
-              >
-                {utilizationPercent}% of {formatHours(configuredWeekMax)}h
-              </span>
-              {rowSearch.trim().length > 0 && (
-                <span className="rounded-full border border-[var(--color-border)] bg-white px-2.5 py-1 text-xs text-[var(--color-text-muted)]">
-                  Filtered: {visibleRows.length} rows / {formatHours(visibleWeekTotal)}h
-                </span>
-              )}
-              <Button size="sm" onClick={save} disabled={saveState === "saving"}>
-                {saveState === "saving" ? "Saving..." : "Save"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
     </section>
   );
 }

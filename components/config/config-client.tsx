@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { DeleteIconButton } from "@/components/ui/delete-icon-button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -597,9 +598,11 @@ export function ConfigClient() {
                       >
                         Down
                       </Button>
-                      <Button variant="destructive" size="sm" onClick={() => removeProject(project.id)}>
-                        Delete Project
-                      </Button>
+                      <DeleteIconButton
+                        label="Delete project"
+                        size="sm"
+                        onClick={() => removeProject(project.id)}
+                      />
                     </div>
 
                     {project.tasks.length === 0 && (
@@ -669,13 +672,11 @@ export function ConfigClient() {
                               >
                                 {hourTypeCollapsed ? "Show Type" : "Hide Type"}
                               </Button>
-                              <Button
-                                variant="destructive"
+                              <DeleteIconButton
+                                label="Delete task"
                                 size="sm"
                                 onClick={() => removeTask(project.id, task.id)}
-                              >
-                                Delete Task
-                              </Button>
+                              />
                             </div>
 
                             <div
