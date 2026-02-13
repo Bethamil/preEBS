@@ -167,11 +167,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   const [rowSearch, setRowSearch] = useState("");
   const [openProjectIds, setOpenProjectIds] = useState<string[]>([]);
 
-  const [quickProjectId, setQuickProjectId] = useState("");
-  const [quickTaskId, setQuickTaskId] = useState("");
-  const [quickHourTypeId, setQuickHourTypeId] = useState("");
-  const [quickDayIndex, setQuickDayIndex] = useState(0);
-  const [quickHours, setQuickHours] = useState("8");
   const [quickComboSearch, setQuickComboSearch] = useState("");
 
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
@@ -271,52 +266,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       hourTypeId: fallbackHourType?.id,
     };
   }, [projects]);
-
-  useEffect(() => {
-    if (projects.length === 0) {
-      return;
-    }
-    if (!quickProjectId || !projects.some((project) => project.id === quickProjectId)) {
-      setQuickProjectId(defaultSelection.projectId ?? projects[0].id);
-    }
-  }, [projects, quickProjectId, defaultSelection.projectId]);
-
-  const quickProject = useMemo(
-    () => projects.find((project) => project.id === quickProjectId),
-    [projects, quickProjectId],
-  );
-
-  const quickTasks = quickProject?.tasks ?? [];
-
-  useEffect(() => {
-    if (quickTasks.length === 0) {
-      setQuickTaskId("");
-      return;
-    }
-    if (!quickTaskId || !quickTasks.some((task) => task.id === quickTaskId)) {
-      setQuickTaskId(quickTasks[0].id);
-    }
-  }, [quickTasks, quickTaskId]);
-
-  const quickTask = useMemo(
-    () => quickTasks.find((task) => task.id === quickTaskId),
-    [quickTasks, quickTaskId],
-  );
-
-  const quickHourTypes = quickTask?.hourTypes ?? [];
-
-  useEffect(() => {
-    if (quickHourTypes.length === 0) {
-      setQuickHourTypeId("");
-      return;
-    }
-
-    if (!quickHourTypeId || !quickHourTypes.some((type) => type.id === quickHourTypeId)) {
-      const defaultHourType =
-        quickHourTypes.find((type) => type.name === DEFAULT_HOUR_TYPE_NAME) ?? quickHourTypes[0];
-      setQuickHourTypeId(defaultHourType.id);
-    }
-  }, [quickHourTypes, quickHourTypeId]);
 
   const shouldShowHourType = useMemo(() => {
     const normalizedHourTypeNames = new Set<string>();
@@ -772,29 +721,13 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     pushToast("Export complete.", "success");
   };
 
-  const quickAdd = () => {
-    const parsedHours = clampHours(parseNumberInput(quickHours));
-
-    addRow({
-      overrideProjectId: quickProjectId,
-      overrideTaskId: quickTaskId,
-      overrideHourTypeId: quickHourTypeId,
-      presetDayIndex: quickDayIndex,
-      presetHours: parsedHours,
-    });
-  };
-
   const quickAddFromCombo = (combo: ComboOption) => {
-    setQuickProjectId(combo.projectId);
-    setQuickTaskId(combo.taskId);
-    setQuickHourTypeId(combo.hourTypeId);
     setQuickComboSearch(combo.label);
 
     addRow({
       overrideProjectId: combo.projectId,
       overrideTaskId: combo.taskId,
       overrideHourTypeId: combo.hourTypeId,
-      presetDayIndex: quickDayIndex,
       presetHours: 0,
     });
   };
@@ -998,93 +931,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
             {quickComboMatches.length === 0 && (
               <p className="text-xs text-[var(--color-text-muted)]">No combo matches this search.</p>
             )}
-          </div>
-        </div>
-
-        <div
-          className={cn(
-            "mt-4 grid gap-2 sm:grid-cols-2",
-            shouldShowHourType
-              ? "lg:grid-cols-[1.15fr_1.15fr_1.15fr_0.8fr_0.65fr_auto]"
-              : "lg:grid-cols-[1.25fr_1.25fr_0.8fr_0.65fr_auto]",
-          )}
-        >
-          <label className="space-y-1">
-            <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">Project</span>
-            <Select
-              value={quickProjectId}
-              className="h-9 rounded-lg text-xs"
-              onChange={(event) => setQuickProjectId(event.target.value)}
-            >
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </Select>
-          </label>
-
-          <label className="space-y-1">
-            <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">Task</span>
-            <Select
-              value={quickTaskId}
-              className="h-9 rounded-lg text-xs"
-              onChange={(event) => setQuickTaskId(event.target.value)}
-            >
-              {quickTasks.map((task) => (
-                <option key={task.id} value={task.id}>
-                  {task.name}
-                </option>
-              ))}
-            </Select>
-          </label>
-
-          {shouldShowHourType && (
-            <label className="space-y-1">
-              <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">Hour Type</span>
-              <Select
-                value={quickHourTypeId}
-                className="h-9 rounded-lg text-xs"
-                onChange={(event) => setQuickHourTypeId(event.target.value)}
-              >
-                {quickHourTypes.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.name}
-                  </option>
-                ))}
-              </Select>
-            </label>
-          )}
-
-          <label className="space-y-1">
-            <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">Day</span>
-            <Select
-              value={String(quickDayIndex)}
-              className="h-9 rounded-lg text-xs"
-              onChange={(event) => setQuickDayIndex(Number(event.target.value))}
-            >
-              {WEEKDAY_LABELS.map((label, index) => (
-                <option key={label} value={index}>
-                  {label}
-                </option>
-              ))}
-            </Select>
-          </label>
-
-          <label className="space-y-1">
-            <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">Hours</span>
-            <Input
-              value={quickHours}
-              className="h-9 rounded-lg text-xs"
-              onChange={(event) => setQuickHours(event.target.value)}
-              inputMode="decimal"
-            />
-          </label>
-
-          <div className="self-end">
-            <Button className="w-full" size="sm" onClick={quickAdd}>
-              Add Row
-            </Button>
           </div>
         </div>
       </Card>
