@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "PreEBS -> EBS Importer",
+  "description": "Paste PreEBS export JSON and fill the Oracle EBS timecard grid.",
+  "version": "0.1.0",
+  "permissions": ["activeTab", "scripting"],
+  "action": {
+    "default_title": "PreEBS Importer",
+    "default_popup": "popup.html"
+  }
+}

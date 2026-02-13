@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PreEBS Importer</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup">
+      <h1>PreEBS -> EBS</h1>
+      <p class="hint">Open an EBS timecard tab, then paste your exported JSON.</p>
+
+      <label for="jsonInput">Export JSON</label>
+      <textarea id="jsonInput" spellcheck="false" placeholder='Paste JSON from preebs-YYYY-MM-DD.json'></textarea>
+
+      <div class="row">
+        <button id="pasteButton" type="button" class="secondary">Paste</button>
+      </div>
+
+      <fieldset>
+        <legend>Options</legend>
+
+        <label class="option">
+          <input id="allowAddRows" type="checkbox" checked />
+          <span>Add rows when needed</span>
+        </label>
+
+        <label class="option">
+          <input id="overwriteRowHours" type="checkbox" checked />
+          <span>Overwrite Mon-Fri hours in matched rows</span>
+        </label>
+
+        <label class="option">
+          <input id="clearUntouchedRows" type="checkbox" />
+          <span>Clear Mon-Fri hours in untouched rows</span>
+        </label>
+
+        <label class="option">
+          <input id="clickRecalculate" type="checkbox" checked />
+          <span>Click "Opnieuw berekenen" after fill</span>
+        </label>
+
+        <label class="option">
+          <input id="dryRun" type="checkbox" />
+          <span>Dry run (no field changes)</span>
+        </label>
+      </fieldset>
+
+      <button id="runButton" type="button" class="primary">Run Import</button>
+      <pre id="status" aria-live="polite">Idle.</pre>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -95,3 +95,16 @@ Returns nested JSON containing all weekdays (Mon-Fri), with consistent totals an
       - `hourTypes[]`
 
 Each level includes IDs and display names.
+
+## Chrome extension importer (PreEBS JSON -> EBS)
+
+A ready-to-load Chrome extension is included at:
+
+- `/Users/emielbloem/projects/PreEBS/chrome-extension/preebs-ebs-importer`
+
+It lets you paste exported week JSON and auto-fill the EBS timecard grid
+(Project/Taak/Soort + Mon-Fri hours).
+
+See installation and usage:
+
+- `/Users/emielbloem/projects/PreEBS/chrome-extension/preebs-ebs-importer/README.md`
