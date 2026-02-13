@@ -10,7 +10,7 @@ PreEBS is a UX-first weekly timesheet app designed for people who still have to 
 
 ## Features
 
-- `/config`: manage Projects, Tasks, Hour Types, max-hours rule, and optional blocking when exceeded.
+- `/config`: manage Projects, Tasks, Hour Types, and per-day (Mon-Fri) max-hour limits.
 - `/week/[weekStartDate]`: high-speed weekly entry (Mon-Fri) with collapsible project panels, compact weekly grid, keyboard navigation, sticky totals footer, warnings, and auto-save.
 - `/weeks`: saved week overview with totals, exceeded indicators, search, and export.
 - Export per-week nested JSON grouped by day -> projects -> tasks -> hour types.
@@ -50,7 +50,7 @@ The JSON document database stores:
 
 - `users[]`
 - `configs[userId]`
-  - `maxHoursPerWeek`
+  - `maxHoursPerDay` (Mon-Fri)
   - `projects[]`
     - `tasks[]`
       - `hourTypes[]`

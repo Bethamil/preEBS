@@ -137,7 +137,7 @@ export function buildWeekExport(config: UserConfig, week: WeekDocument): WeekExp
   return {
     weekStart: week.weekStartDate,
     weekEnd: week.weekEndDate,
-    maxHoursPerWeek: config.maxHoursPerWeek,
+    maxHoursPerDay: config.maxHoursPerDay,
     days: dayNodes,
     totals: {
       hours: weekTotal,

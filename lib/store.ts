@@ -28,6 +28,7 @@ import { clampHours, safeTrim } from "@/lib/utils";
 const DB_PATH = path.join(process.cwd(), "data", "preebs-db.json");
 
 let writeQueue: Promise<unknown> = Promise.resolve();
+const DEFAULT_MAX_HOURS_PER_DAY = 8;
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -48,7 +49,7 @@ function defaultUser(): User {
 export function createEmptyConfig(userId: string = DEFAULT_USER_ID): UserConfig {
   return {
     userId,
-    maxHoursPerWeek: 40,
+    maxHoursPerDay: Array.from({ length: WEEKDAY_COUNT }, () => DEFAULT_MAX_HOURS_PER_DAY),
     projects: [],
     updatedAt: nowIso(),
   };
@@ -147,9 +148,13 @@ function normalizeProject(project: Project): Project {
 }
 
 export function normalizeConfig(config: UserConfig): UserConfig {
-  const maxHours = Number.isFinite(config.maxHoursPerWeek)
-    ? Math.max(1, Math.round(config.maxHoursPerWeek))
-    : 40;
+  const maxHoursPerDay = Array.from({ length: WEEKDAY_COUNT }, (_, index) => {
+    const value = config.maxHoursPerDay?.[index];
+    if (!Number.isFinite(value)) {
+      return DEFAULT_MAX_HOURS_PER_DAY;
+    }
+    return clampHours(value);
+  });
 
   const projects = config.projects
     .map(normalizeProject)
@@ -157,7 +162,7 @@ export function normalizeConfig(config: UserConfig): UserConfig {
 
   return {
     userId: config.userId || DEFAULT_USER_ID,
-    maxHoursPerWeek: maxHours,
+    maxHoursPerDay,
     projects,
     updatedAt: nowIso(),
   };
@@ -263,6 +268,17 @@ function totalWeekHours(week: WeekDocument): number {
     (weekTotal, row) => weekTotal + row.hours.reduce((rowTotal, hours) => rowTotal + hours, 0),
     0,
   );
+}
+
+function totalHoursByDay(week: WeekDocument): number[] {
+  return Array.from({ length: WEEKDAY_COUNT }, (_, dayIndex) =>
+    week.rows.reduce((sum, row) => sum + (row.hours[dayIndex] ?? 0), 0),
+  );
+}
+
+function exceedsDailyMaxHours(week: WeekDocument, config: UserConfig): boolean {
+  const totalsByDay = totalHoursByDay(week);
+  return totalsByDay.some((hours, dayIndex) => hours > (config.maxHoursPerDay[dayIndex] ?? 0));
 }
 
 function includeWeekInSearch(week: WeekDocument, query: string): boolean {
@@ -380,7 +396,7 @@ export async function listWeekSummaries(
         weekStartDate: week.weekStartDate,
         weekEndDate: week.weekEndDate,
         totalHours: hours,
-        exceededMaxHours: hours > config.maxHoursPerWeek,
+        exceededMaxHours: exceedsDailyMaxHours(week, config),
         updatedAt: week.updatedAt,
       };
     });

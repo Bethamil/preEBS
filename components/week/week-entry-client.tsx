@@ -69,6 +69,7 @@ interface ComboOption extends RecentCombo {
 }
 
 type SaveState = "idle" | "saving" | "saved" | "error";
+const HOUR_COMPARE_EPSILON = 0.001;
 
 function comboKey(projectId: string, taskId: string, hourTypeId: string): string {
   return `${projectId}:${taskId}:${hourTypeId}`;
@@ -432,6 +433,39 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     () => visibleTotalsByDay.reduce((sum, value) => sum + value, 0),
     [visibleTotalsByDay],
   );
+  const maxHoursPerDay = config?.maxHoursPerDay ?? Array.from({ length: WEEKDAY_COUNT }, () => 0);
+  const configuredWeekMax = useMemo(
+    () => maxHoursPerDay.reduce((sum, value) => sum + value, 0),
+    [maxHoursPerDay],
+  );
+  const exceededDayIndexes = useMemo(
+    () =>
+      totalsByDay.reduce<number[]>((indices, total, dayIndex) => {
+        const dayMax = maxHoursPerDay[dayIndex] ?? 0;
+        if (total > dayMax + HOUR_COMPARE_EPSILON) {
+          indices.push(dayIndex);
+        }
+        return indices;
+      }, []),
+    [totalsByDay, maxHoursPerDay],
+  );
+  const exceededDayIndexSet = useMemo(
+    () => new Set<number>(exceededDayIndexes),
+    [exceededDayIndexes],
+  );
+  const exactDayIndexSet = useMemo(
+    () =>
+      new Set<number>(
+        totalsByDay.reduce<number[]>((indices, total, dayIndex) => {
+          const dayMax = maxHoursPerDay[dayIndex] ?? 0;
+          if (dayMax > 0 && Math.abs(total - dayMax) <= HOUR_COMPARE_EPSILON) {
+            indices.push(dayIndex);
+          }
+          return indices;
+        }, []),
+      ),
+    [totalsByDay, maxHoursPerDay],
+  );
 
   const projectSummaries = useMemo(() => {
     const summaries = [] as Array<{
@@ -463,12 +497,14 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
         totalsByDay: totals,
         total,
         taskCount,
-        status: total > (config?.maxHoursPerWeek ?? Number.MAX_SAFE_INTEGER) ? "warning" : "ok",
+        status: totals.some((hours, dayIndex) => hours > (maxHoursPerDay[dayIndex] ?? 0) + HOUR_COMPARE_EPSILON)
+          ? "warning"
+          : "ok",
       });
     }
 
     return summaries;
-  }, [projects, rows, visibleRows, config?.maxHoursPerWeek]);
+  }, [projects, rows, visibleRows, maxHoursPerDay]);
 
   const comboOptions = useMemo(() => {
     const recentKeys = new Set(
@@ -523,10 +559,8 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       .slice(0, 8);
   }, [comboOptions, quickComboSearch]);
 
-  const exceedsMax = config ? weekTotal > config.maxHoursPerWeek : false;
-  const utilizationPercent = config
-    ? Math.min(100, Math.round((weekTotal / Math.max(config.maxHoursPerWeek, 1)) * 100))
-    : 0;
+  const exceedsMax = exceededDayIndexes.length > 0;
+  const utilizationPercent = Math.min(100, Math.round((weekTotal / Math.max(configuredWeekMax, 1)) * 100));
 
   const ensureRowConsistency = (row: LocalRow): LocalRow => {
     const project = projects.find((item) => item.id === row.projectId) ?? projects[0];
@@ -920,8 +954,15 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
         </div>
 
         {exceedsMax && (
-          <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            Week total exceeds configured max ({formatHours(config.maxHoursPerWeek)}h).
+          <div className="mt-3 rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
+            Daily max exceeded for{" "}
+            {exceededDayIndexes
+              .map(
+                (dayIndex) =>
+                  `${WEEKDAY_LABELS[dayIndex]} (${formatHours(totalsByDay[dayIndex])}h > ${formatHours(maxHoursPerDay[dayIndex])}h)`,
+              )
+              .join(", ")}
+            .
           </div>
         )}
       </Card>
@@ -1116,9 +1157,12 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
               key={label}
               className={cn(
                 "flex items-center justify-between rounded-xl border px-2.5 py-2",
-                focusedDayIndex === index
-                  ? "border-[var(--color-accent)] bg-[rgba(29,96,112,0.08)]"
-                  : "border-[var(--color-border)] bg-white",
+                exceededDayIndexSet.has(index)
+                  ? "border-red-300 bg-red-50"
+                  : exactDayIndexSet.has(index)
+                    ? "border-emerald-300 bg-emerald-50"
+                    : "border-[var(--color-border)] bg-white",
+                focusedDayIndex === index && "ring-2 ring-[var(--color-ring)]",
               )}
             >
               <button
@@ -1129,6 +1173,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
               >
                 <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">{label}</p>
                 <p className="text-xs font-semibold">{formatHours(totalsByDay[index])}h</p>
+                <p className="text-[11px] text-[var(--color-text-muted)]">Max {formatHours(maxHoursPerDay[index])}h</p>
                 <p className="text-[11px] text-[var(--color-text-muted)]">{formatDateLabel(weekDates[index])}</p>
               </button>
               <button
@@ -1498,7 +1543,12 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                 <div
                   key={`global-day-total-${WEEKDAY_LABELS[index]}`}
                   className={cn(
-                    "rounded-lg border border-[var(--color-border)] bg-[var(--color-panel-strong)] px-2 py-1.5 text-center",
+                    "rounded-lg border px-2 py-1.5 text-center",
+                    exceededDayIndexSet.has(index)
+                      ? "border-red-300 bg-red-50"
+                      : exactDayIndexSet.has(index)
+                        ? "border-emerald-300 bg-emerald-50"
+                        : "border-[var(--color-border)] bg-[var(--color-panel-strong)]",
                     focusedDayIndex === index && "ring-2 ring-[var(--color-ring)]",
                   )}
                 >
@@ -1522,11 +1572,11 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                 className={cn(
                   "rounded-full border px-2.5 py-1 text-xs",
                   exceedsMax
-                    ? "border-amber-300 bg-amber-50 text-amber-900"
+                    ? "border-red-300 bg-red-50 text-red-900"
                     : "border-emerald-200 bg-emerald-50 text-emerald-800",
                 )}
               >
-                {utilizationPercent}% of {formatHours(config.maxHoursPerWeek)}h
+                {utilizationPercent}% of {formatHours(configuredWeekMax)}h
               </span>
               {rowSearch.trim().length > 0 && (
                 <span className="rounded-full border border-[var(--color-border)] bg-white px-2.5 py-1 text-xs text-[var(--color-text-muted)]">

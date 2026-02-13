@@ -28,7 +28,7 @@ Primary goal: make weekly entry dramatically faster and clearer than EBS.
   - per row
   - per project (if grouped)
   - per week
-- Respect max-hours settings (`maxHoursPerWeek`).
+- Respect max-hours settings (`maxHoursPerDay`).
 - Do not allow duplicate logical entries for the same combination within the same week row set:
   - `projectId + taskId + hourTypeId` should be unique in a week.
 

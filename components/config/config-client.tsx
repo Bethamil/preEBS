@@ -6,7 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
-import { DEFAULT_HOUR_TYPE_ID, DEFAULT_HOUR_TYPE_NAME } from "@/lib/constants";
+import {
+  DEFAULT_HOUR_TYPE_ID,
+  DEFAULT_HOUR_TYPE_NAME,
+  WEEKDAY_LABELS,
+} from "@/lib/constants";
 import type { Project, UserConfig } from "@/lib/types";
 import { cn, formatHours } from "@/lib/utils";
 
@@ -149,6 +153,10 @@ export function ConfigClient() {
   }, [config]);
 
   const projectCount = config?.projects.length ?? 0;
+  const weeklyConfiguredMax = useMemo(
+    () => config?.maxHoursPerDay.reduce((sum, value) => sum + value, 0) ?? 0,
+    [config],
+  );
 
   const totalTaskCount = useMemo(
     () => config?.projects.reduce((sum, project) => sum + project.tasks.length, 0) ?? 0,
@@ -447,27 +455,39 @@ export function ConfigClient() {
         </div>
 
         <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_1fr]">
-          <label className="rounded-xl border border-[var(--color-border)] bg-white p-3">
-            <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-              Max Hours Per Week
-            </span>
-            <Input
-              type="number"
-              min={1}
-              max={168}
-              value={config.maxHoursPerWeek}
-              className="mt-2 h-9"
-              onChange={(event) =>
-                setConfig({
-                  ...config,
-                  maxHoursPerWeek: Math.max(1, Number(event.target.value) || 1),
-                })
-              }
-            />
-            <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-              Daily target: {formatHours(config.maxHoursPerWeek / 5)}h
+          <div className="rounded-xl border border-[var(--color-border)] bg-white p-3">
+            <p className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+              Max Hours Per Day
             </p>
-          </label>
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {WEEKDAY_LABELS.map((label, index) => (
+                <label key={label} className="space-y-1">
+                  <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+                    {label}
+                  </span>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={24}
+                    value={config.maxHoursPerDay[index]}
+                    className="h-9"
+                    onChange={(event) => {
+                      const next = [...config.maxHoursPerDay];
+                      const parsed = Number(event.target.value);
+                      next[index] = Number.isFinite(parsed) ? Math.max(0, Math.min(24, parsed)) : 0;
+                      setConfig({
+                        ...config,
+                        maxHoursPerDay: next,
+                      });
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-[var(--color-text-muted)]">
+              Weekly max from daily caps: {formatHours(weeklyConfiguredMax)}h
+            </p>
+          </div>
 
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-panel-strong)] p-3">
             <p className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">

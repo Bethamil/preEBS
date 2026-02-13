@@ -25,7 +25,7 @@ export interface Project {
 
 export interface UserConfig {
   userId: string;
-  maxHoursPerWeek: number;
+  maxHoursPerDay: number[];
   projects: Project[];
   updatedAt: string;
 }
@@ -113,7 +113,7 @@ export interface ExportDayNode {
 export interface WeekExportDocument {
   weekStart: IsoDateString;
   weekEnd: IsoDateString;
-  maxHoursPerWeek: number;
+  maxHoursPerDay: number[];
   days: ExportDayNode[];
   totals: {
     hours: number;
