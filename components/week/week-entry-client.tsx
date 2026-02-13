@@ -20,7 +20,13 @@ import {
   formatWeekRange,
   getWeekDates,
 } from "@/lib/date";
-import type { RecentCombo, UserConfig, WeekDocument, WeekRowInput } from "@/lib/types";
+import type {
+  RecentCombo,
+  UserConfig,
+  WeekCustomProjectInput,
+  WeekDocument,
+  WeekRowInput,
+} from "@/lib/types";
 import { clampHours, cn, formatHours, parseNumberInput, safeTrim } from "@/lib/utils";
 
 const PROJECT_ACCENT_COLORS = [
@@ -51,6 +57,11 @@ interface LocalRow {
   hourTypeName: string;
   hours: number[];
   note?: string;
+}
+
+interface LocalCustomProject {
+  id: string;
+  name: string;
 }
 
 interface AddRowOptions {
@@ -113,12 +124,18 @@ function toLocalRows(week: WeekDocument): LocalRow[] {
   }));
 }
 
-function serializeRows(rows: LocalRow[]): string {
+function serializeState(rows: LocalRow[], customProjects: LocalCustomProject[]): string {
   return JSON.stringify(
-    rows.map((row) => ({
-      ...row,
-      hours: row.hours.map((hours) => clampHours(hours)),
-    })),
+    {
+      rows: rows.map((row) => ({
+        ...row,
+        hours: row.hours.map((hours) => clampHours(hours)),
+      })),
+      customProjects: customProjects.map((project) => ({
+        id: project.id,
+        name: safeTrim(project.name),
+      })),
+    },
   );
 }
 
@@ -136,9 +153,46 @@ function toPayload(rows: LocalRow[]): WeekRowInput[] {
   }));
 }
 
+function toCustomProjectPayload(customProjects: LocalCustomProject[]): WeekCustomProjectInput[] {
+  return customProjects.map((project) => ({
+    id: project.id,
+    name: safeTrim(project.name),
+  }));
+}
+
+function deriveCustomProjects(week: WeekDocument, configuredProjectIds: Set<string>): LocalCustomProject[] {
+  const projectById = new Map<string, LocalCustomProject>();
+
+  for (const project of week.customProjects ?? []) {
+    const id = safeTrim(project.id);
+    const name = safeTrim(project.name);
+    if (!id || configuredProjectIds.has(id)) {
+      continue;
+    }
+    projectById.set(id, { id, name: name || "Custom Project" });
+  }
+
+  for (const row of week.rows) {
+    if (configuredProjectIds.has(row.projectId) || projectById.has(row.projectId)) {
+      continue;
+    }
+    const id = safeTrim(row.projectId);
+    if (!id) {
+      continue;
+    }
+    projectById.set(id, {
+      id,
+      name: safeTrim(row.projectName) || "Custom Project",
+    });
+  }
+
+  return Array.from(projectById.values());
+}
+
 export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   const { pushToast } = useToast();
   const [config, setConfig] = useState<UserConfig | null>(null);
+  const [customProjects, setCustomProjects] = useState<LocalCustomProject[]>([]);
   const [rows, setRows] = useState<LocalRow[]>([]);
   const [recentCombos, setRecentCombos] = useState<RecentCombo[]>([]);
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -168,10 +222,13 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     const data = (await response.json()) as WeekEditorResponse;
 
     const localRows = toLocalRows(data.week);
-    const snapshot = serializeRows(localRows);
+    const configuredIds = new Set(data.config.projects.map((project) => project.id));
+    const localCustomProjects = deriveCustomProjects(data.week, configuredIds);
+    const snapshot = serializeState(localRows, localCustomProjects);
 
     setConfig(data.config);
     setRows(localRows);
+    setCustomProjects(localCustomProjects);
     setRecentCombos(data.recentCombos);
     setLastSavedSnapshot(snapshot);
     setSaveState("idle");
@@ -188,20 +245,9 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     () => new Set(configProjects.map((project) => project.id)),
     [configProjects],
   );
-  const customProjectIds = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          rows
-            .map((row) => row.projectId)
-            .filter((projectId) => !configuredProjectIdSet.has(projectId)),
-        ),
-      ),
-    [rows, configuredProjectIdSet],
-  );
   const allProjectIds = useMemo(
-    () => [...configProjects.map((project) => project.id), ...customProjectIds],
-    [configProjects, customProjectIds],
+    () => [...configProjects.map((project) => project.id), ...customProjects.map((project) => project.id)],
+    [configProjects, customProjects],
   );
 
   const rememberEditedProject = (projectId: string) => {
@@ -292,7 +338,10 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     return () => window.removeEventListener("keydown", listener);
   }, []);
 
-  const snapshot = useMemo(() => serializeRows(rows), [rows]);
+  const snapshot = useMemo(
+    () => serializeState(rows, customProjects),
+    [rows, customProjects],
+  );
 
   useEffect(() => {
     if (loading || !config || snapshot === lastSavedSnapshot || saveState === "saving") {
@@ -335,8 +384,12 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       }
     }
 
+    for (const project of customProjects) {
+      projectMap.set(project.id, project.name);
+    }
+
     return { projectMap, taskMap, hourTypeMap };
-  }, [configProjects, rows]);
+  }, [configProjects, rows, customProjects]);
 
   const visibleRows = useMemo(() => {
     const query = rowSearch.trim().toLowerCase();
@@ -437,6 +490,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     for (let index = 0; index < allProjectIds.length; index += 1) {
       const projectId = allProjectIds[index];
       const configProject = configProjects.find((project) => project.id === projectId) ?? null;
+      const customProject = customProjects.find((project) => project.id === projectId) ?? null;
       const projectRows = rows.filter((row) => row.projectId === projectId);
       const visibleProjectRows = visibleRows.filter((row) => row.projectId === projectId);
       const totals = Array.from({ length: WEEKDAY_COUNT }, (_, dayIndex) =>
@@ -450,7 +504,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
 
       summaries.push({
         projectId,
-        projectName: configProject?.name ?? latestProjectName ?? "Custom Project",
+        projectName: configProject?.name ?? customProject?.name ?? latestProjectName ?? "Custom Project",
         configProject,
         isCustom: !configProject,
         accentColor: PROJECT_ACCENT_COLORS[index % PROJECT_ACCENT_COLORS.length],
@@ -466,7 +520,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     }
 
     return summaries;
-  }, [allProjectIds, configProjects, rows, visibleRows, maxHoursPerDay]);
+  }, [allProjectIds, configProjects, customProjects, rows, visibleRows, maxHoursPerDay]);
 
   const comboOptions = useMemo(() => {
     const recentKeys = new Set(
@@ -529,7 +583,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       return {
         ...row,
         projectName: safeTrim(row.projectName) || "Custom Project",
-        taskName: safeTrim(row.taskName) || "Task",
+        taskName: safeTrim(row.taskName),
         hourTypeName: safeTrim(row.hourTypeName) || DEFAULT_HOUR_TYPE_NAME,
       };
     }
@@ -559,8 +613,9 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     const baseProjectId = options?.overrideProjectId ?? options?.combo?.projectId ?? defaultSelection.projectId;
     if (baseProjectId && !configuredProjectIdSet.has(baseProjectId)) {
       const projectName =
-        rows.find((row) => row.projectId === baseProjectId)?.projectName ?? "Custom Project";
-      const projectRowCount = rows.filter((row) => row.projectId === baseProjectId).length;
+        customProjects.find((project) => project.id === baseProjectId)?.name ??
+        rows.find((row) => row.projectId === baseProjectId)?.projectName ??
+        "Custom Project";
       const customTaskId = `custom-task:${crypto.randomUUID()}`;
       const customHourTypeId = `custom-hour-type:${crypto.randomUUID()}`;
       const customRow: LocalRow = {
@@ -568,7 +623,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
         projectId: baseProjectId,
         projectName,
         taskId: customTaskId,
-        taskName: `Task ${projectRowCount + 1}`,
+        taskName: "",
         hourTypeId: customHourTypeId,
         hourTypeName: DEFAULT_HOUR_TYPE_NAME,
         hours: [0, 0, 0, 0, 0],
@@ -698,33 +753,12 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   };
 
   const addCustomProjectRow = () => {
-    const customProjectCount = rows.filter((row) => row.projectId.startsWith("custom-project:")).length;
-    const projectName = customProjectCount === 0 ? "Custom Project" : `Custom Project ${customProjectCount + 1}`;
-    const taskName = "Task";
-
+    const customProjectCount = customProjects.length;
+    const projectName =
+      customProjectCount === 0 ? "Custom Project" : `Custom Project ${customProjectCount + 1}`;
     const projectId = `custom-project:${crypto.randomUUID()}`;
-    const taskId = `custom-task:${crypto.randomUUID()}`;
-    const hourTypeId = `custom-hour-type:${crypto.randomUUID()}`;
-    const nextRow: LocalRow = {
-      id: crypto.randomUUID(),
-      projectId,
-      projectName,
-      taskId,
-      taskName,
-      hourTypeId,
-      hourTypeName: DEFAULT_HOUR_TYPE_NAME,
-      hours: [0, 0, 0, 0, 0],
-    };
-
     rememberEditedProject(projectId);
-    setRows((current) => [...current, nextRow]);
-
-    window.setTimeout(() => {
-      const key = `${nextRow.id}:0`;
-      const input = inputRefs.current.get(key);
-      input?.focus();
-      input?.select();
-    }, 10);
+    setCustomProjects((current) => [...current, { id: projectId, name: projectName }]);
   };
 
   const updateRow = (rowId: string, updater: (row: LocalRow) => LocalRow, projectHint?: string) => {
@@ -765,6 +799,9 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
 
   const updateCustomProjectName = (projectId: string, projectName: string) => {
     rememberEditedProject(projectId);
+    setCustomProjects((current) =>
+      current.map((project) => (project.id === projectId ? { ...project, name: projectName } : project)),
+    );
     setRows((current) =>
       current.map((row) => (row.projectId === projectId ? { ...row, projectName } : row)),
     );
@@ -784,8 +821,9 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     if (!confirmed) {
       return;
     }
-
+    setCustomProjects((current) => current.filter((project) => project.id !== projectId));
     setRows((current) => current.filter((row) => row.projectId !== projectId));
+    setOpenProjectIds((current) => current.filter((id) => id !== projectId));
     pushToast("Custom project deleted.", "info");
   };
 
@@ -816,7 +854,10 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ rows: toPayload(rows) }),
+      body: JSON.stringify({
+        rows: toPayload(rows),
+        customProjects: toCustomProjectPayload(customProjects),
+      }),
     });
 
     if (!response.ok) {
@@ -827,7 +868,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     }
 
     setSaveState("saved");
-    setLastSavedSnapshot(serializeRows(rows));
+    setLastSavedSnapshot(serializeState(rows, customProjects));
   };
 
   const copyPrevious = async () => {
@@ -850,8 +891,10 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
 
     const data = (await response.json()) as { week: WeekDocument };
     const localRows = toLocalRows(data.week);
+    const localCustomProjects = deriveCustomProjects(data.week, configuredProjectIdSet);
     setRows(localRows);
-    setLastSavedSnapshot(serializeRows(localRows));
+    setCustomProjects(localCustomProjects);
+    setLastSavedSnapshot(serializeState(localRows, localCustomProjects));
     setSaveState("saved");
     pushToast("Previous week copied.", "success");
   };

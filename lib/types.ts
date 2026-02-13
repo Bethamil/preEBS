@@ -47,9 +47,15 @@ export interface WeekDocument {
   userId: string;
   weekStartDate: IsoDateString;
   weekEndDate: IsoDateString;
+  customProjects?: WeekCustomProject[];
   rows: StoredWeekRow[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface WeekCustomProject {
+  id: string;
+  name: string;
 }
 
 export interface WeekRowInput {
@@ -62,6 +68,11 @@ export interface WeekRowInput {
   hourTypeName?: string;
   hours: number[];
   note?: string;
+}
+
+export interface WeekCustomProjectInput {
+  id: string;
+  name: string;
 }
 
 export interface WeekSummary {

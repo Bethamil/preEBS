@@ -19,6 +19,8 @@ import type {
   RecentCombo,
   User,
   UserConfig,
+  WeekCustomProject,
+  WeekCustomProjectInput,
   WeekDocument,
   WeekRowInput,
   WeekSummary,
@@ -243,7 +245,11 @@ function buildRowNameMaps(config: UserConfig): {
   };
 }
 
-function normalizeWeekRows(rows: WeekRowInput[], config: UserConfig): WeekDocument["rows"] {
+function normalizeWeekRows(
+  rows: WeekRowInput[],
+  config: UserConfig,
+  customProjectNameMap: Map<string, string>,
+): WeekDocument["rows"] {
   const {
     projectMap,
     taskMap,
@@ -272,10 +278,14 @@ function normalizeWeekRows(rows: WeekRowInput[], config: UserConfig): WeekDocume
           hourTypeIdsByTask.get(taskId)?.has(hourTypeId),
       );
 
-      const projectName = isKnownConfigCombo ? projectRef?.name ?? "" : safeTrim(row.projectName ?? "");
+      const projectName = isKnownConfigCombo
+        ? projectRef?.name ?? ""
+        : safeTrim(row.projectName ?? "") || customProjectNameMap.get(projectId) || "Custom Project";
       const taskName = isKnownConfigCombo ? taskRef?.name ?? "" : safeTrim(row.taskName ?? "");
-      const hourTypeName = isKnownConfigCombo ? hourTypeRef?.name ?? "" : safeTrim(row.hourTypeName ?? "");
-      if (!projectName || !taskName || !hourTypeName) {
+      const hourTypeName = isKnownConfigCombo
+        ? hourTypeRef?.name ?? ""
+        : safeTrim(row.hourTypeName ?? "") || DEFAULT_HOUR_TYPE_NAME;
+      if (!projectName || !hourTypeName) {
         return null;
       }
 
@@ -324,6 +334,43 @@ function normalizeWeekRows(rows: WeekRowInput[], config: UserConfig): WeekDocume
     .filter((row): row is WeekDocument["rows"][number] => Boolean(row));
 }
 
+function normalizeCustomProjects(
+  customProjects: WeekCustomProjectInput[] | undefined,
+  rows: WeekDocument["rows"],
+  config: UserConfig,
+): WeekCustomProject[] {
+  const configuredProjectIds = new Set(config.projects.map((project) => project.id));
+  const byId = new Map<string, WeekCustomProject>();
+  const order: string[] = [];
+
+  for (const project of customProjects ?? []) {
+    const id = safeTrim(project.id);
+    const name = safeTrim(project.name) || "Custom Project";
+    if (!id || configuredProjectIds.has(id) || byId.has(id)) {
+      continue;
+    }
+    byId.set(id, { id, name });
+    order.push(id);
+  }
+
+  for (const row of rows) {
+    if (configuredProjectIds.has(row.projectId) || byId.has(row.projectId)) {
+      continue;
+    }
+    const id = safeTrim(row.projectId);
+    const name = safeTrim(row.projectName);
+    if (!id || !name) {
+      continue;
+    }
+    byId.set(id, { id, name });
+    order.push(id);
+  }
+
+  return order
+    .map((id) => byId.get(id))
+    .filter((project): project is WeekCustomProject => Boolean(project));
+}
+
 function totalWeekHours(week: WeekDocument): number {
   return week.rows.reduce(
     (weekTotal, row) => weekTotal + row.hours.reduce((rowTotal, hours) => rowTotal + hours, 0),
@@ -363,6 +410,7 @@ export async function getWeek(
 export async function saveWeek(
   weekStartDate: IsoDateString,
   rows: WeekRowInput[],
+  customProjects: WeekCustomProjectInput[] = [],
   userId: string = DEFAULT_USER_ID,
 ): Promise<WeekDocument> {
   return withWriteLock(async () => {
@@ -375,13 +423,21 @@ export async function saveWeek(
     const key = weekKey(userId, weekStartDate);
     const existing = db.weeks[key];
     const now = nowIso();
-    const normalizedRows = normalizeWeekRows(rows, config);
+    const customProjectNameMap = new Map<string, string>(
+      customProjects
+        .map((project) => ({ id: safeTrim(project.id), name: safeTrim(project.name) || "Custom Project" }))
+        .filter((project) => project.id.length > 0)
+        .map((project) => [project.id, project.name]),
+    );
+    const normalizedRows = normalizeWeekRows(rows, config, customProjectNameMap);
+    const normalizedCustomProjects = normalizeCustomProjects(customProjects, normalizedRows, config);
 
     const document: WeekDocument = {
       id: existing?.id ?? key,
       userId,
       weekStartDate,
       weekEndDate: getWeekEndDate(weekStartDate),
+      customProjects: normalizedCustomProjects,
       rows: normalizedRows,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
@@ -421,6 +477,7 @@ export async function copyPreviousWeek(
       userId,
       weekStartDate,
       weekEndDate: getWeekEndDate(weekStartDate),
+      customProjects: previous.customProjects ?? [],
       rows: copiedRows,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
