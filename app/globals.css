@@ -59,6 +59,9 @@
   --surface-inset-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.56);
   --floating-panel-bg: rgba(255, 255, 255, 0.9);
   --info-toast-bg: rgba(246, 245, 253, 0.96);
+  --command-surface: rgba(255, 255, 255, 0.78);
+  --command-shadow: 0 8px 22px rgba(69, 63, 110, 0.16);
+  --header-rule: color-mix(in srgb, var(--color-accent) 66%, var(--color-accent-alt));
 }
 
 [data-theme="dark"] {
@@ -118,6 +121,9 @@
   --surface-inset-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
   --floating-panel-bg: rgba(26, 24, 41, 0.92);
   --info-toast-bg: rgba(45, 39, 70, 0.92);
+  --command-surface: rgba(26, 24, 41, 0.88);
+  --command-shadow: 0 10px 28px rgba(0, 0, 0, 0.34);
+  --header-rule: color-mix(in srgb, var(--color-accent) 66%, var(--color-accent-alt));
 }
 
 * {
