@@ -83,56 +83,15 @@ function comboLabel(
   return `${combo.projectName} / ${combo.taskName} / ${combo.hourTypeName}`;
 }
 
-function mergeHours(base: number[], incoming: number[]): number[] {
-  return Array.from({ length: WEEKDAY_COUNT }, (_, index) =>
-    clampHours((base[index] ?? 0) + (incoming[index] ?? 0)),
-  );
-}
-
-function hasHours(hours: number[]): boolean {
-  return hours.some((value) => value > 0);
-}
-
-function mergeDuplicateRows(rows: LocalRow[]): LocalRow[] {
-  const byCombo = new Map<string, LocalRow>();
-  const order: string[] = [];
-
-  for (const row of rows) {
-    const key = comboKey(row.projectId, row.taskId, row.hourTypeId);
-    const existing = byCombo.get(key);
-
-    if (!existing) {
-      byCombo.set(key, {
-        ...row,
-        hours: Array.from({ length: WEEKDAY_COUNT }, (_, index) => clampHours(row.hours[index] ?? 0)),
-      });
-      order.push(key);
-      continue;
-    }
-
-    byCombo.set(key, {
-      ...existing,
-      hours: mergeHours(existing.hours, row.hours),
-      note: existing.note ?? row.note,
-    });
-  }
-
-  return order
-    .map((key) => byCombo.get(key))
-    .filter((row): row is LocalRow => Boolean(row));
-}
-
 function toLocalRows(week: WeekDocument): LocalRow[] {
-  return mergeDuplicateRows(
-    week.rows.map((row) => ({
-      id: row.id,
-      projectId: row.projectId,
-      taskId: row.taskId,
-      hourTypeId: row.hourTypeId,
-      hours: Array.from({ length: WEEKDAY_COUNT }, (_, index) => clampHours(row.hours[index] ?? 0)),
-      note: row.note,
-    })),
-  );
+  return week.rows.map((row) => ({
+    id: row.id,
+    projectId: row.projectId,
+    taskId: row.taskId,
+    hourTypeId: row.hourTypeId,
+    hours: Array.from({ length: WEEKDAY_COUNT }, (_, index) => clampHours(row.hours[index] ?? 0)),
+    note: row.note,
+  }));
 }
 
 function serializeRows(rows: LocalRow[]): string {
@@ -530,21 +489,79 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     }
 
     const baseProjectId = options?.overrideProjectId ?? options?.combo?.projectId ?? defaultSelection.projectId;
-
     const project = projects.find((item) => item.id === baseProjectId) ?? projects[0];
-    const task =
-      project.tasks.find((item) => item.id === options?.overrideTaskId) ??
-      project.tasks.find((item) => item.id === options?.combo?.taskId) ??
-      project.tasks[0];
-
-    const hourType =
-      task?.hourTypes.find((item) => item.id === options?.overrideHourTypeId) ??
-      task?.hourTypes.find((item) => item.id === options?.combo?.hourTypeId) ??
-      task?.hourTypes.find((item) => item.name === DEFAULT_HOUR_TYPE_NAME) ??
-      task?.hourTypes[0] ?? { id: DEFAULT_HOUR_TYPE_ID, name: DEFAULT_HOUR_TYPE_NAME };
-
-    if (!task) {
+    if (project.tasks.length === 0) {
       pushToast("This project has no task yet. Add one in Config.", "error");
+      return;
+    }
+
+    const explicitTaskId = options?.overrideTaskId ?? options?.combo?.taskId;
+    const explicitHourTypeId = options?.overrideHourTypeId ?? options?.combo?.hourTypeId;
+    const hasExplicitCombo = Boolean(options?.combo || explicitTaskId || explicitHourTypeId);
+
+    const existingKeys = new Set(
+      rows.map((row) => comboKey(row.projectId, row.taskId, row.hourTypeId)),
+    );
+
+    const taskCandidates = explicitTaskId
+      ? project.tasks.filter((task) => task.id === explicitTaskId)
+      : project.tasks;
+
+    let selectedTask: UserConfig["projects"][number]["tasks"][number] | undefined;
+    let selectedHourType: { id: string; name: string } | undefined;
+
+    for (const taskCandidate of taskCandidates) {
+      const fallbackHourType = { id: DEFAULT_HOUR_TYPE_ID, name: DEFAULT_HOUR_TYPE_NAME };
+      const availableHourTypes = taskCandidate.hourTypes.length > 0 ? taskCandidate.hourTypes : [fallbackHourType];
+      const orderedHourTypes = explicitHourTypeId
+        ? availableHourTypes.filter((hourType) => hourType.id === explicitHourTypeId)
+        : [
+            ...(availableHourTypes.find((hourType) => hourType.name === DEFAULT_HOUR_TYPE_NAME)
+              ? availableHourTypes.filter((hourType) => hourType.name === DEFAULT_HOUR_TYPE_NAME)
+              : []),
+            ...availableHourTypes.filter((hourType) => hourType.name !== DEFAULT_HOUR_TYPE_NAME),
+          ];
+
+      for (const hourTypeCandidate of orderedHourTypes) {
+        const key = comboKey(project.id, taskCandidate.id, hourTypeCandidate.id);
+        if (!existingKeys.has(key)) {
+          selectedTask = taskCandidate;
+          selectedHourType = hourTypeCandidate;
+          break;
+        }
+      }
+
+      if (selectedTask && selectedHourType) {
+        break;
+      }
+    }
+
+    if (!selectedTask || !selectedHourType) {
+      const existingRow =
+        explicitTaskId || explicitHourTypeId
+          ? rows.find(
+              (row) =>
+                row.projectId === project.id &&
+                row.taskId === explicitTaskId &&
+                (!explicitHourTypeId || row.hourTypeId === explicitHourTypeId),
+            )
+          : rows.find((row) => row.projectId === project.id);
+
+      if (existingRow) {
+        window.setTimeout(() => {
+          const key = `${existingRow.id}:${focusedDayIndex ?? 0}`;
+          const input = inputRefs.current.get(key);
+          input?.focus();
+          input?.select();
+        }, 10);
+      }
+
+      pushToast(
+        hasExplicitCombo
+          ? "Task already exists in this project."
+          : "All task rows already exist in this project.",
+        "info",
+      );
       return;
     }
 
@@ -559,33 +576,17 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     const nextRow: LocalRow = {
       id: crypto.randomUUID(),
       projectId: project.id,
-      taskId: task.id,
-      hourTypeId: hourType.id,
+      taskId: selectedTask.id,
+      hourTypeId: selectedHourType.id,
       hours,
     };
 
     rememberEditedProject(project.id);
     const normalizedNextRow = ensureRowConsistency(nextRow);
-    const nextComboKey = comboKey(
-      normalizedNextRow.projectId,
-      normalizedNextRow.taskId,
-      normalizedNextRow.hourTypeId,
-    );
-    const existing = rows.find(
-      (row) => comboKey(row.projectId, row.taskId, row.hourTypeId) === nextComboKey,
-    );
-
-    setRows((current) => mergeDuplicateRows([...current, normalizedNextRow]));
-
-    if (existing) {
-      pushToast(
-        hasHours(normalizedNextRow.hours) ? "Hours added to existing task row." : "Task already exists in this project.",
-        "info",
-      );
-    }
+    setRows((current) => [...current, normalizedNextRow]);
 
     window.setTimeout(() => {
-      const key = `${existing?.id ?? normalizedNextRow.id}:${presetDayIndex}`;
+      const key = `${normalizedNextRow.id}:${presetDayIndex}`;
       const input = inputRefs.current.get(key);
       input?.focus();
       input?.select();
@@ -596,36 +597,36 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     if (projectHint) {
       rememberEditedProject(projectHint);
     }
+    let duplicateRowId: string | null = null;
     setRows((current) => {
-      const updatedRows = current.map((row) =>
-        row.id === rowId ? ensureRowConsistency(updater(row)) : row,
-      );
-      const updatedRow = updatedRows.find((row) => row.id === rowId);
-      if (!updatedRow) {
-        return updatedRows;
+      const currentRow = current.find((row) => row.id === rowId);
+      if (!currentRow) {
+        return current;
       }
-
-      const duplicate = updatedRows.find(
+      const updatedRow = ensureRowConsistency(updater(currentRow));
+      const duplicate = current.find(
         (row) =>
           row.id !== rowId &&
           row.projectId === updatedRow.projectId &&
           row.taskId === updatedRow.taskId &&
           row.hourTypeId === updatedRow.hourTypeId,
       );
-      if (!duplicate) {
-        return updatedRows;
+      if (duplicate) {
+        duplicateRowId = duplicate.id;
+        return current;
       }
 
-      const mergedRow: LocalRow = {
-        ...duplicate,
-        hours: mergeHours(duplicate.hours, updatedRow.hours),
-        note: duplicate.note ?? updatedRow.note,
-      };
-
-      return updatedRows
-        .filter((row) => row.id !== rowId)
-        .map((row) => (row.id === duplicate.id ? mergedRow : row));
+      return current.map((row) => (row.id === rowId ? updatedRow : row));
     });
+    if (duplicateRowId) {
+      pushToast("Task already exists in this project.", "info");
+      window.setTimeout(() => {
+        const key = `${duplicateRowId}:${focusedDayIndex ?? 0}`;
+        const input = inputRefs.current.get(key);
+        input?.focus();
+        input?.select();
+      }, 10);
+    }
   };
 
   const deleteRow = (rowId: string) => {
