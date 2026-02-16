@@ -82,6 +82,7 @@ interface ComboOption extends RecentCombo {
 interface ProjectSummary {
   projectId: string;
   projectName: string;
+  projectEbsName?: string;
   configProject: UserConfig["projects"][number] | null;
   isCustom: boolean;
   accentColor: string;
@@ -108,6 +109,11 @@ function comboLabel(
     return `${combo.projectName} / ${combo.taskName}`;
   }
   return `${combo.projectName} / ${combo.taskName} / ${combo.hourTypeName}`;
+}
+
+function getProjectDisplayName(project: Pick<UserConfig["projects"][number], "name" | "label">): string {
+  const label = safeTrim(project.label ?? "");
+  return label || project.name;
 }
 
 function toLocalRows(week: WeekDocument): LocalRow[] {
@@ -371,12 +377,14 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   }, [snapshot, lastSavedSnapshot, loading, config]);
 
   const nameMaps = useMemo(() => {
-    const projectMap = new Map<string, string>();
+    const projectDisplayMap = new Map<string, string>();
+    const projectEbsMap = new Map<string, string>();
     const taskMap = new Map<string, string>();
     const hourTypeMap = new Map<string, string>();
 
     for (const project of configProjects) {
-      projectMap.set(project.id, project.name);
+      projectDisplayMap.set(project.id, getProjectDisplayName(project));
+      projectEbsMap.set(project.id, project.name);
       for (const task of project.tasks) {
         taskMap.set(task.id, task.name);
         for (const hourType of task.hourTypes) {
@@ -386,8 +394,10 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     }
 
     for (const row of rows) {
-      if (row.projectName) {
-        projectMap.set(row.projectId, row.projectName);
+      const isConfiguredProject = configuredProjectIdSet.has(row.projectId);
+      if (row.projectName && !isConfiguredProject) {
+        projectDisplayMap.set(row.projectId, row.projectName);
+        projectEbsMap.set(row.projectId, row.projectName);
       }
       if (row.taskName) {
         taskMap.set(row.taskId, row.taskName);
@@ -398,11 +408,12 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     }
 
     for (const project of customProjects) {
-      projectMap.set(project.id, project.name);
+      projectDisplayMap.set(project.id, project.name);
+      projectEbsMap.set(project.id, project.name);
     }
 
-    return { projectMap, taskMap, hourTypeMap };
-  }, [configProjects, rows, customProjects]);
+    return { projectDisplayMap, projectEbsMap, taskMap, hourTypeMap };
+  }, [configProjects, rows, customProjects, configuredProjectIdSet]);
 
   const visibleRows = useMemo(() => {
     const query = rowSearch.trim().toLowerCase();
@@ -413,10 +424,11 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     const tokens = query.split(/\s+/).filter(Boolean);
 
     return rows.filter((row) => {
-      const projectName = nameMaps.projectMap.get(row.projectId) ?? "";
+      const projectDisplayName = nameMaps.projectDisplayMap.get(row.projectId) ?? "";
+      const projectEbsName = nameMaps.projectEbsMap.get(row.projectId) ?? "";
       const taskName = nameMaps.taskMap.get(row.taskId) ?? "";
       const hourTypeName = nameMaps.hourTypeMap.get(row.hourTypeId) ?? "";
-      const haystack = `${projectName} ${taskName} ${hourTypeName}`.toLowerCase();
+      const haystack = `${projectDisplayName} ${projectEbsName} ${taskName} ${hourTypeName}`.toLowerCase();
       return tokens.every((token) => haystack.includes(token));
     });
   }, [rows, rowSearch, nameMaps]);
@@ -514,10 +526,15 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       const latestProjectName = [...projectRows]
         .reverse()
         .find((row) => safeTrim(row.projectName).length > 0)?.projectName;
+      const projectDisplayName = configProject
+        ? getProjectDisplayName(configProject)
+        : customProject?.name ?? latestProjectName ?? "Custom Project";
+      const projectEbsName = configProject?.name;
 
       summaries.push({
         projectId,
-        projectName: configProject?.name ?? customProject?.name ?? latestProjectName ?? "Custom Project",
+        projectName: projectDisplayName,
+        projectEbsName,
         configProject,
         isCustom: !configProject,
         accentColor: PROJECT_ACCENT_COLORS[index % PROJECT_ACCENT_COLORS.length],
@@ -543,6 +560,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     const options: ComboOption[] = [];
 
     for (const project of configProjects) {
+      const projectDisplayName = getProjectDisplayName(project);
       for (const task of project.tasks) {
         for (const hourType of task.hourTypes) {
           const isRecent = recentKeys.has(comboKey(project.id, task.id, hourType.id));
@@ -554,13 +572,13 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
             hourTypeId: hourType.id,
             hourTypeName: hourType.name,
             label: comboLabel({
-              projectName: project.name,
+              projectName: projectDisplayName,
               taskName: task.name,
               hourTypeName: hourType.name,
             }, shouldShowHourType),
             searchText: shouldShowHourType
-              ? `${project.name} ${task.name} ${hourType.name}`.toLowerCase()
-              : `${project.name} ${task.name}`.toLowerCase(),
+              ? `${projectDisplayName} ${project.name} ${task.name} ${hourType.name}`.toLowerCase()
+              : `${projectDisplayName} ${project.name} ${task.name}`.toLowerCase(),
             isRecent,
           };
           options.push(option);
@@ -1216,6 +1234,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
           const {
             projectId,
             projectName,
+            projectEbsName,
             configProject,
             isCustom,
             accentColor,
@@ -1265,6 +1284,13 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                         {status === "warning" ? "Warning" : "OK"}
                       </span>
                     </div>
+                    {!isCustom &&
+                      projectEbsName &&
+                      safeTrim(projectEbsName) !== safeTrim(projectName) && (
+                        <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                          EBS: {projectEbsName}
+                        </p>
+                      )}
                   </button>
                   {isCustom && (
                     <div className="mt-2 max-w-xs">

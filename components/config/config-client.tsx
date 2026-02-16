@@ -32,7 +32,8 @@ interface ConfigResponse {
 function createBlankProject(): Project {
   return {
     id: crypto.randomUUID(),
-    name: "New Project",
+    name: "New EBS Project",
+    label: "",
     tasks: [],
   };
 }
@@ -184,7 +185,7 @@ export function ConfigClient() {
       const nested = project.tasks
         .map((task) => `${task.name} ${task.hourTypes.map((hourType) => hourType.name).join(" ")}`)
         .join(" ");
-      const haystack = `${project.name} ${nested}`.toLowerCase();
+      const haystack = `${project.label ?? ""} ${project.name} ${nested}`.toLowerCase();
       return tokens.every((token) => haystack.includes(token));
     });
   }, [config, search]);
@@ -212,6 +213,20 @@ export function ConfigClient() {
         ...current,
         projects: current.projects.map((project) =>
           project.id === projectId ? { ...project, name } : project,
+        ),
+      };
+    });
+  };
+
+  const updateProjectLabel = (projectId: string, label: string) => {
+    setConfig((current) => {
+      if (!current) {
+        return current;
+      }
+      return {
+        ...current,
+        projects: current.projects.map((project) =>
+          project.id === projectId ? { ...project, label } : project,
         ),
       };
     });
@@ -533,8 +548,15 @@ export function ConfigClient() {
                   >
                     <div className="flex items-center gap-2">
                       <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: accentColor }} />
-                      <h3 className="truncate text-base font-semibold">{project.name || "Untitled Project"}</h3>
+                      <h3 className="truncate text-base font-semibold">
+                        {project.label?.trim() || project.name || "Untitled Project"}
+                      </h3>
                     </div>
+                    {project.label?.trim() && (
+                      <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                        EBS name: {project.name || "Untitled Project"}
+                      </p>
+                    )}
                     <p className="mt-1 text-xs text-[var(--color-text-muted)]">
                       {project.tasks.length} task{project.tasks.length === 1 ? "" : "s"} · single hour type mode
                     </p>
@@ -552,12 +574,18 @@ export function ConfigClient() {
 
                 {isExpanded && (
                   <div className="space-y-3 p-3">
-                    <div className="grid gap-2 lg:grid-cols-[1fr_auto_auto_auto]">
+                    <div className="grid gap-2 lg:grid-cols-[1fr_1fr_auto_auto_auto]">
                       <Input
-                        aria-label="Project name"
+                        aria-label="Project label"
+                        value={project.label ?? ""}
+                        onChange={(event) => updateProjectLabel(project.id, event.target.value)}
+                        placeholder="Display label (optional)"
+                      />
+                      <Input
+                        aria-label="Project EBS name"
                         value={project.name}
                         onChange={(event) => updateProjectName(project.id, event.target.value)}
-                        placeholder="Project name"
+                        placeholder="EBS project name (required)"
                       />
                       <Button
                         variant="ghost"

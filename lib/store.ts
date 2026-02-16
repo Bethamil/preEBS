@@ -120,6 +120,7 @@ function normalizeSingleHourType(
 
 function normalizeProject(project: Project): Project {
   const projectName = safeTrim(project.name);
+  const projectLabel = safeTrim(project.label ?? "");
   const tasks = project.tasks
     .map((task) => {
       const taskName = safeTrim(task.name);
@@ -145,6 +146,7 @@ function normalizeProject(project: Project): Project {
   return {
     id: project.id || randomUUID(),
     name: projectName,
+    label: projectLabel || undefined,
     tasks,
   };
 }
