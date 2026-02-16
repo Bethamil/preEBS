@@ -92,6 +92,7 @@ export function ConfigClient() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [showImportWarning, setShowImportWarning] = useState(false);
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState("");
   const [search, setSearch] = useState("");
   const [openProjectIds, setOpenProjectIds] = useState<string[]>([]);
@@ -450,6 +451,11 @@ export function ConfigClient() {
   };
 
   const triggerImport = () => {
+    setShowImportWarning(true);
+  };
+
+  const continueImport = () => {
+    setShowImportWarning(false);
     fileInputRef.current?.click();
   };
 
@@ -481,6 +487,7 @@ export function ConfigClient() {
       setLastSavedSnapshot(configSnapshot(normalized));
       setOpenProjectIds(normalized.projects[0]?.id ? [normalized.projects[0].id] : []);
       setSearch("");
+      setShowImportWarning(false);
       pushToast("Configuration imported.", "success");
     } finally {
       setImporting(false);
@@ -523,10 +530,23 @@ export function ConfigClient() {
             </Button>
           </div>
         </div>
-        <p className="mt-2 text-xs text-[var(--color-text-muted)]">
-          Import overwrites your current configuration.
-          {hasUnsavedChanges ? " Unsaved edits will be lost." : ""}
-        </p>
+        {showImportWarning && (
+          <div className="status-warn mt-3 rounded-xl border px-3 py-2">
+            <p className="text-sm font-semibold">Warning: importing overwrites your current configuration.</p>
+            <p className="text-xs">
+              Export first if you want a backup.
+              {hasUnsavedChanges ? " Unsaved edits will be lost." : ""}
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Button size="sm" onClick={continueImport} disabled={importing}>
+                Continue Import
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setShowImportWarning(false)} disabled={importing}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_1fr]">
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-panel)] p-3">
