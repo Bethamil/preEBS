@@ -27,7 +27,21 @@ import type {
 } from "@/lib/types";
 import { clampHours, safeTrim } from "@/lib/utils";
 
-const DB_PATH = path.join(process.cwd(), "data", "preebs-db.json");
+function resolveDbPath(): string {
+  const explicitPath = process.env.PREEBS_DB_PATH?.trim();
+  if (explicitPath) {
+    return path.resolve(explicitPath);
+  }
+
+  const explicitDataDir = process.env.PREEBS_DATA_DIR?.trim();
+  if (explicitDataDir) {
+    return path.join(path.resolve(explicitDataDir), "preebs-db.json");
+  }
+
+  return path.join(process.cwd(), "data", "preebs-db.json");
+}
+
+const DB_PATH = resolveDbPath();
 
 let writeQueue: Promise<unknown> = Promise.resolve();
 const DEFAULT_MAX_HOURS_PER_DAY = 8;

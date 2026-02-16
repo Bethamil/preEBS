@@ -2,12 +2,52 @@
   "name": "preebs",
   "version": "1.0.0",
   "private": true,
+  "main": "electron/main.cjs",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "dev": "npm run dev:web",
+    "dev:web": "next dev",
+    "dev:desktop": "node scripts/dev-desktop.mjs",
+    "build": "npm run build:web",
+    "build:web": "next build --webpack",
+    "build:desktop": "node scripts/clean-desktop-build.mjs && npm run build:web && node scripts/prepare-desktop.mjs && node scripts/generate-mac-icon.mjs && electron-builder --mac",
+    "start": "npm run start:web",
+    "start:web": "next start",
+    "start:desktop": "npm run build:web && node scripts/prepare-desktop.mjs && electron electron/main.cjs",
     "typecheck": "tsc --noEmit",
     "lint": "next lint"
+  },
+  "build": {
+    "appId": "com.preebs.desktop",
+    "productName": "PreEBS",
+    "asar": true,
+    "asarUnpack": [
+      ".next/standalone/**/*",
+      ".next/static/**/*",
+      "public/**/*"
+    ],
+    "directories": {
+      "output": "dist-desktop"
+    },
+    "files": [
+      "electron/**/*",
+      ".next/standalone/**/*",
+      ".next/static/**/*",
+      "public/**/*",
+      "package.json",
+      "!dist-desktop{,/**}",
+      "!.next/standalone/dist-desktop{,/**}"
+    ],
+    "mac": {
+      "icon": "build/icon.png",
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "dmg": {
+      "icon": "build/icon.png"
+    }
   },
   "dependencies": {
     "next": "^16.1.6",
@@ -19,6 +59,8 @@
     "@types/node": "22.19.11",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
+    "electron": "^40.4.1",
+    "electron-builder": "^26.7.0",
     "tailwindcss": "4.1.18",
     "typescript": "5.9.2"
   }

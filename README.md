@@ -43,11 +43,40 @@ Use:
 
 ```bash
 npm install
-npm run build
-npm run start
+npm run build:web
+npm run start:web
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+## Run as macOS desktop app (Electron)
+
+Development mode (hot reload):
+
+```bash
+npm install
+npm run dev:desktop
+```
+
+Production-like local desktop run:
+
+```bash
+npm run start:desktop
+```
+
+Create a macOS app bundle (`.dmg` + `.zip`) in `dist-desktop/`:
+
+```bash
+npm run build:desktop
+```
+
+`build:desktop` automatically generates a macOS app icon from `public/favicon.png`.
+It also cleans previous desktop output before packaging to avoid recursive bundle inclusion.
+
+Desktop data storage:
+
+- Dev desktop mode: `~/.preebs-desktop/preebs-db.json`
+- Packaged app: `~/Library/Application Support/PreEBS/preebs-db.json`
 
 ## Run with Docker
 
