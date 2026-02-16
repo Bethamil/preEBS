@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -91,10 +91,12 @@ export function ConfigClient() {
   const [config, setConfig] = useState<UserConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState("");
   const [search, setSearch] = useState("");
   const [openProjectIds, setOpenProjectIds] = useState<string[]>([]);
   const [collapsedHourTypeMap, setCollapsedHourTypeMap] = useState<Record<string, boolean>>({});
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const run = async () => {
@@ -425,6 +427,66 @@ export function ConfigClient() {
     pushToast("Configuration saved.", "success");
   };
 
+  const exportConfig = async () => {
+    const response = await fetch("/api/config/export", { cache: "no-store" });
+    if (!response.ok) {
+      pushToast("Could not export configuration.", "error");
+      return;
+    }
+
+    const json = await response.text();
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const contentDisposition = response.headers.get("Content-Disposition");
+    const filenameMatch = contentDisposition?.match(/filename="?([^"]+)"?/i);
+
+    link.href = url;
+    link.download = filenameMatch?.[1] ?? "preebs-config.json";
+    link.click();
+    URL.revokeObjectURL(url);
+
+    pushToast("Configuration exported.", "success");
+  };
+
+  const triggerImport = () => {
+    fileInputRef.current?.click();
+  };
+
+  const importConfig = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) {
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const payload = await file.text();
+      const response = await fetch("/api/config/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      });
+
+      if (!response.ok) {
+        const errorPayload = (await response.json().catch(() => ({}))) as { error?: string };
+        pushToast(errorPayload.error ?? "Could not import configuration.", "error");
+        return;
+      }
+
+      const data = (await response.json()) as ConfigResponse;
+      const normalized = normalizeConfigToSingleHourType(data.config);
+      setConfig(normalized);
+      setLastSavedSnapshot(configSnapshot(normalized));
+      setOpenProjectIds(normalized.projects[0]?.id ? [normalized.projects[0].id] : []);
+      setSearch("");
+      pushToast("Configuration imported.", "success");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   if (loading || !config) {
     return <p className="text-sm text-[var(--color-text-muted)]">Loading configuration...</p>;
   }
@@ -432,6 +494,13 @@ export function ConfigClient() {
   return (
     <section className="space-y-4 pb-28">
       <Card className="p-5 sm:p-6">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json,.json"
+          className="sr-only"
+          onChange={importConfig}
+        />
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold">Configuration</h1>
@@ -440,14 +509,24 @@ export function ConfigClient() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" onClick={exportConfig}>
+              Export Config
+            </Button>
+            <Button variant="secondary" onClick={triggerImport} disabled={saving || importing}>
+              {importing ? "Importing..." : "Import Config"}
+            </Button>
             <Button variant="secondary" onClick={addProject}>
               Add Project
             </Button>
-            <Button onClick={save} disabled={saving || !hasUnsavedChanges}>
+            <Button onClick={save} disabled={saving || importing || !hasUnsavedChanges}>
               {saving ? "Saving..." : "Save Config"}
             </Button>
           </div>
         </div>
+        <p className="mt-2 text-xs text-[var(--color-text-muted)]">
+          Import overwrites your current configuration.
+          {hasUnsavedChanges ? " Unsaved edits will be lost." : ""}
+        </p>
 
         <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_1fr]">
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-panel)] p-3">
@@ -743,7 +822,7 @@ export function ConfigClient() {
                 {hasUnsavedChanges ? "Unsaved changes" : "All changes saved"}
               </span>
             </div>
-            <Button onClick={save} disabled={saving || !hasUnsavedChanges}>
+            <Button onClick={save} disabled={saving || importing || !hasUnsavedChanges}>
               {saving ? "Saving..." : "Save Config"}
             </Button>
           </div>

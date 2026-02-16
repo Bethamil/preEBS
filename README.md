@@ -11,6 +11,13 @@ Enter your hours in PreEBS, then import them into EBS with the included Chrome e
 3. Export JSON from PreEBS.
 4. Import JSON into EBS with the Chrome extension.
 
+## Config import/export
+
+In `/config`:
+
+1. Click **Export Config** to download `preebs-config-YYYY-MM-DD.json`.
+2. Click **Import Config** and select that file to replace the current configuration.
+
 ## Chrome extension (JSON -> EBS)
 
 Extension folder:

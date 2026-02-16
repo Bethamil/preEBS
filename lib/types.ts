@@ -136,3 +136,10 @@ export interface WeekExportDocument {
     hours: number;
   };
 }
+
+export interface ConfigExportDocument {
+  type: "preebs-config";
+  version: 1;
+  exportedAt: string;
+  config: UserConfig;
+}
