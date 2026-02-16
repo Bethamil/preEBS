@@ -1269,9 +1269,35 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                       />
                     </div>
                   )}
-                  <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-                    {formatHours(total)}h total · {taskCount} task{taskCount === 1 ? "" : "s"}
-                  </p>
+                  <div
+                    className="mt-2 flex flex-wrap items-center gap-1.5"
+                    aria-label={`${projectName} daily totals`}
+                  >
+                    {WEEKDAY_LABELS.map((label, index) => {
+                      const dayTotal = projectTotalsByDay[index] ?? 0;
+                      return (
+                        <span
+                          key={`${projectId}-${label}-header-total`}
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.04em]",
+                            dayTotal > 0
+                              ? "border-[var(--color-border-strong)] bg-[var(--color-panel-strong)] text-[var(--color-text-soft)]"
+                              : "border-[var(--color-border)] text-[var(--color-text-muted)]",
+                          )}
+                        >
+                          <span>{label}</span>
+                          <span className="font-mono text-[11px] normal-case">{formatHours(dayTotal)}h</span>
+                        </span>
+                      );
+                    })}
+                    <span className="inline-flex items-center gap-1 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-panel-strong)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-soft)]">
+                      <span>Total</span>
+                      <span className="font-mono text-[11px] normal-case">{formatHours(total)}h</span>
+                    </span>
+                    <span className="text-[11px] text-[var(--color-text-muted)]">
+                      {taskCount} task{taskCount === 1 ? "" : "s"}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-2">
