@@ -3,15 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { currentWeekStart } from "@/lib/date";
 import { cn } from "@/lib/utils";
-
-const items = [
-  { href: "/weeks", label: "Weeks" },
-  { href: "/config", label: "Config" },
-];
 
 export function Nav() {
   const pathname = usePathname();
+  const items = [
+    { href: `/week/${currentWeekStart()}`, label: "Current" },
+    { href: "/weeks", label: "Weeks" },
+    { href: "/config", label: "Config" },
+  ];
 
   return (
     <nav aria-label="Primary" className="flex items-center gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--nav-surface)] p-1 shadow-[var(--surface-inset-shadow)]">
