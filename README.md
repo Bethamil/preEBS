@@ -36,7 +36,16 @@ Use:
 
 ```bash
 npm install
-npm run dev
+npm run build
+npm run start
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+## Run with Docker
+
+```bash
+docker compose up -d --build
+```
+
+Open [http://localhost:43117](http://localhost:43117).
