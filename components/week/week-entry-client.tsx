@@ -1124,50 +1124,70 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
 
       <Card className="p-4 sm:p-5">
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-          {WEEKDAY_LABELS.map((label, index) => (
-            <div
-              key={label}
-              className={cn(
-                "flex cursor-pointer items-center justify-between rounded-xl border px-2.5 py-2 transition hover:border-[var(--color-ring)]",
-                exceededDayIndexSet.has(index)
-                  ? "status-danger"
-                  : exactDayIndexSet.has(index)
-                    ? "status-ok"
-                    : "border-[var(--color-border)] bg-[var(--color-panel-strong)]",
-                focusedDayIndex === index && "ring-2 ring-[var(--color-ring)]",
-              )}
-              role="button"
-              tabIndex={0}
-              onClick={() => setFocusedDayIndex(index)}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter" && event.key !== " ") {
-                  return;
-                }
-                event.preventDefault();
-                setFocusedDayIndex(index);
-              }}
-              aria-label={`Focus ${label}`}
-            >
-              <div className="text-left">
-                <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">{label}</p>
-                <p className="text-xs font-semibold">{formatHours(totalsByDay[index])}h</p>
-                <p className="text-[11px] text-[var(--color-text-muted)]">Max {formatHours(maxHoursPerDay[index])}h</p>
-                <p className="text-[11px] text-[var(--color-text-muted)]">{formatDateLabel(weekDates[index])}</p>
-              </div>
-              <button
-                type="button"
-                className="rounded-md border border-[var(--color-border)] px-2 py-1 text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-muted)] transition hover:bg-[var(--color-panel-strong)]"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  clearDay(index);
+          {WEEKDAY_LABELS.map((label, index) => {
+            const dayTotal = formatHours(totalsByDay[index]);
+            const dayMax = formatHours(maxHoursPerDay[index]);
+
+            return (
+              <div
+                key={label}
+                className={cn(
+                  "flex min-h-28 cursor-pointer flex-col rounded-xl border px-3 py-2.5 transition hover:border-[var(--color-ring)]",
+                  exceededDayIndexSet.has(index)
+                    ? "status-danger"
+                    : exactDayIndexSet.has(index)
+                      ? "status-ok"
+                      : "border-[var(--color-border)] bg-[var(--color-panel-strong)]",
+                  focusedDayIndex === index && "ring-2 ring-[var(--color-ring)]",
+                )}
+                role="button"
+                tabIndex={0}
+                onClick={() => setFocusedDayIndex(index)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") {
+                    return;
+                  }
+                  event.preventDefault();
+                  setFocusedDayIndex(index);
                 }}
-                aria-label={`Clear ${label}`}
-                title={`Clear ${label}`}
+                aria-label={`Focus ${label}`}
               >
-                Clear
-              </button>
-            </div>
-          ))}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="text-left">
+                    <p className="text-xl font-bold uppercase tracking-[0.04em] leading-none">{label}</p>
+                    <p className="mt-1 text-[11px] text-[var(--color-text-muted)]">{formatDateLabel(weekDates[index])}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] text-[var(--color-text-muted)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      clearDay(index);
+                    }}
+                    aria-label={`Clear ${label}`}
+                    title={`Clear ${label}`}
+                  >
+                    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" aria-hidden>
+                      <path
+                        d="M3 4h10M6.1 2.8h3.8M5.3 4v8.2c0 .5.4.9.9.9h3.6c.5 0 .9-.4.9-.9V4"
+                        stroke="currentColor"
+                        strokeWidth="1.3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path d="M7 6.4v4.2M9 6.4v4.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="mt-auto flex items-end justify-between gap-2">
+                  <p className="text-lg font-semibold leading-none">{dayTotal}h</p>
+                  <p className="rounded-full border border-[var(--color-border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+                    Max {dayMax}h
+                  </p>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </Card>
 
