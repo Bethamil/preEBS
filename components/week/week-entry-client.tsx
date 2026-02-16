@@ -77,6 +77,7 @@ interface ComboOption extends RecentCombo {
   label: string;
   searchText: string;
   isRecent: boolean;
+  isNew: boolean;
 }
 
 interface ProjectSummary {
@@ -87,7 +88,6 @@ interface ProjectSummary {
   isCustom: boolean;
   accentColor: string;
   projectRows: LocalRow[];
-  visibleProjectRows: LocalRow[];
   totalsByDay: number[];
   total: number;
   taskCount: number;
@@ -205,7 +205,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   const [loading, setLoading] = useState(true);
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState("");
   const [focusedDayIndex, setFocusedDayIndex] = useState<number | null>(0);
-  const [rowSearch, setRowSearch] = useState("");
   const [openProjectIds, setOpenProjectIds] = useState<string[]>([]);
   const [pendingCustomProjectDeleteId, setPendingCustomProjectDeleteId] = useState<string | null>(null);
 
@@ -376,86 +375,14 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshot, lastSavedSnapshot, loading, config]);
 
-  const nameMaps = useMemo(() => {
-    const projectDisplayMap = new Map<string, string>();
-    const projectEbsMap = new Map<string, string>();
-    const taskMap = new Map<string, string>();
-    const hourTypeMap = new Map<string, string>();
-
-    for (const project of configProjects) {
-      projectDisplayMap.set(project.id, getProjectDisplayName(project));
-      projectEbsMap.set(project.id, project.name);
-      for (const task of project.tasks) {
-        taskMap.set(task.id, task.name);
-        for (const hourType of task.hourTypes) {
-          hourTypeMap.set(hourType.id, hourType.name);
-        }
-      }
-    }
-
-    for (const row of rows) {
-      const isConfiguredProject = configuredProjectIdSet.has(row.projectId);
-      if (row.projectName && !isConfiguredProject) {
-        projectDisplayMap.set(row.projectId, row.projectName);
-        projectEbsMap.set(row.projectId, row.projectName);
-      }
-      if (row.taskName) {
-        taskMap.set(row.taskId, row.taskName);
-      }
-      if (row.hourTypeName) {
-        hourTypeMap.set(row.hourTypeId, row.hourTypeName);
-      }
-    }
-
-    for (const project of customProjects) {
-      projectDisplayMap.set(project.id, project.name);
-      projectEbsMap.set(project.id, project.name);
-    }
-
-    return { projectDisplayMap, projectEbsMap, taskMap, hourTypeMap };
-  }, [configProjects, rows, customProjects, configuredProjectIdSet]);
-
-  const visibleRows = useMemo(() => {
-    const query = rowSearch.trim().toLowerCase();
-    if (!query) {
-      return rows;
-    }
-
-    const tokens = query.split(/\s+/).filter(Boolean);
-
-    return rows.filter((row) => {
-      const projectDisplayName = nameMaps.projectDisplayMap.get(row.projectId) ?? "";
-      const projectEbsName = nameMaps.projectEbsMap.get(row.projectId) ?? "";
-      const taskName = nameMaps.taskMap.get(row.taskId) ?? "";
-      const hourTypeName = nameMaps.hourTypeMap.get(row.hourTypeId) ?? "";
-      const haystack = `${projectDisplayName} ${projectEbsName} ${taskName} ${hourTypeName}`.toLowerCase();
-      return tokens.every((token) => haystack.includes(token));
-    });
-  }, [rows, rowSearch, nameMaps]);
-
-  const hasRowSearch = rowSearch.trim().length > 0;
-  const autoExpandedProjectIds = useMemo(() => {
-    if (!hasRowSearch) {
-      return [] as string[];
-    }
-    return Array.from(new Set(visibleRows.map((row) => row.projectId)));
-  }, [hasRowSearch, visibleRows]);
-  const effectiveOpenProjectIds = useMemo(() => {
-    if (!hasRowSearch) {
-      return openProjectIds;
-    }
-
-    return Array.from(new Set([...openProjectIds, ...autoExpandedProjectIds]));
-  }, [hasRowSearch, openProjectIds, autoExpandedProjectIds]);
-
   const openVisibleRows = useMemo(() => {
-    if (effectiveOpenProjectIds.length === 0) {
+    if (openProjectIds.length === 0) {
       return [];
     }
 
-    const openProjects = new Set(effectiveOpenProjectIds);
-    return visibleRows.filter((row) => openProjects.has(row.projectId));
-  }, [visibleRows, effectiveOpenProjectIds]);
+    const openProjects = new Set(openProjectIds);
+    return rows.filter((row) => openProjects.has(row.projectId));
+  }, [rows, openProjectIds]);
 
   const totalsByDay = useMemo(
     () =>
@@ -517,7 +444,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       const configProject = configProjects.find((project) => project.id === projectId) ?? null;
       const customProject = customProjects.find((project) => project.id === projectId) ?? null;
       const projectRows = rows.filter((row) => row.projectId === projectId);
-      const visibleProjectRows = visibleRows.filter((row) => row.projectId === projectId);
       const totals = Array.from({ length: WEEKDAY_COUNT }, (_, dayIndex) =>
         projectRows.reduce((sum, row) => sum + (row.hours[dayIndex] ?? 0), 0),
       );
@@ -539,7 +465,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
         isCustom: !configProject,
         accentColor: PROJECT_ACCENT_COLORS[index % PROJECT_ACCENT_COLORS.length],
         projectRows,
-        visibleProjectRows,
         totalsByDay: totals,
         total,
         taskCount,
@@ -550,11 +475,14 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     }
 
     return summaries;
-  }, [allProjectIds, configProjects, customProjects, rows, visibleRows, maxHoursPerDay]);
+  }, [allProjectIds, configProjects, customProjects, rows, maxHoursPerDay]);
 
   const comboOptions = useMemo(() => {
     const recentKeys = new Set(
       recentCombos.map((combo) => comboKey(combo.projectId, combo.taskId, combo.hourTypeId)),
+    );
+    const existingKeys = new Set(
+      rows.map((row) => comboKey(row.projectId, row.taskId, row.hourTypeId)),
     );
 
     const options: ComboOption[] = [];
@@ -580,6 +508,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
               ? `${projectDisplayName} ${project.name} ${task.name} ${hourType.name}`.toLowerCase()
               : `${projectDisplayName} ${project.name} ${task.name}`.toLowerCase(),
             isRecent,
+            isNew: !existingKeys.has(comboKey(project.id, task.id, hourType.id)),
           };
           options.push(option);
         }
@@ -590,9 +519,12 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       if (left.isRecent !== right.isRecent) {
         return left.isRecent ? -1 : 1;
       }
+      if (left.isNew !== right.isNew) {
+        return left.isNew ? 1 : -1;
+      }
       return left.label.localeCompare(right.label);
     });
-  }, [configProjects, recentCombos, shouldShowHourType]);
+  }, [configProjects, recentCombos, rows, shouldShowHourType]);
 
   const quickComboMatches = useMemo(() => {
     const query = quickComboSearch.trim().toLowerCase();
@@ -735,6 +667,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
           : rows.find((row) => row.projectId === project.id);
 
       if (existingRow) {
+        rememberEditedProject(existingRow.projectId);
         window.setTimeout(() => {
           const key = `${existingRow.id}:${focusedDayIndex ?? 0}`;
           const input = inputRefs.current.get(key);
@@ -947,8 +880,33 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     pushToast("Export complete.", "success");
   };
 
+  const focusExistingComboRow = (combo: Pick<ComboOption, "projectId" | "taskId" | "hourTypeId">): boolean => {
+    const existingRow = rows.find(
+      (row) =>
+        row.projectId === combo.projectId &&
+        row.taskId === combo.taskId &&
+        row.hourTypeId === combo.hourTypeId,
+    );
+    if (!existingRow) {
+      return false;
+    }
+
+    const targetDayIndex = focusedDayIndex ?? 0;
+    rememberEditedProject(existingRow.projectId);
+    window.setTimeout(() => {
+      const key = `${existingRow.id}:${targetDayIndex}`;
+      const input = inputRefs.current.get(key);
+      input?.focus();
+      input?.select();
+    }, 10);
+    return true;
+  };
+
   const quickAddFromCombo = (combo: ComboOption) => {
     setQuickComboSearch(combo.label);
+    if (focusExistingComboRow(combo)) {
+      return;
+    }
 
     addRow({
       overrideProjectId: combo.projectId,
@@ -1144,6 +1102,11 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                     Recent
                   </span>
                 )}
+                {combo.isNew && (
+                  <span className="rounded-full bg-[var(--color-panel-strong)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--color-accent)]">
+                    New
+                  </span>
+                )}
                 <span className="truncate">{combo.label}</span>
               </button>
             ))}
@@ -1160,21 +1123,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
       </Card>
 
       <Card className="p-4 sm:p-5">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="w-full max-w-md">
-            <Input
-              placeholder={
-                shouldShowHourType
-                  ? "Filter rows by project/task/hour type"
-                  : "Filter rows by project/task"
-              }
-              value={rowSearch}
-              onChange={(event) => setRowSearch(event.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
           {WEEKDAY_LABELS.map((label, index) => (
             <div
               key={label}
@@ -1239,15 +1188,13 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
             isCustom,
             accentColor,
             projectRows,
-            visibleProjectRows,
             totalsByDay: projectTotalsByDay,
             total,
             taskCount,
             status,
           } = summary;
-          const isExpanded = effectiveOpenProjectIds.includes(projectId);
-          const visibleRowCount = visibleProjectRows.length;
-          const visibleTaskCount = new Set(visibleProjectRows.map((row) => row.taskId)).size;
+          const isExpanded = openProjectIds.includes(projectId);
+          const visibleRowCount = projectRows.length;
 
           return (
             <section
@@ -1304,8 +1251,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                   )}
                   <p className="mt-1 text-xs text-[var(--color-text-muted)]">
                     {formatHours(total)}h total · {taskCount} task{taskCount === 1 ? "" : "s"}
-                    {hasRowSearch &&
-                      ` · Showing ${visibleTaskCount} task${visibleTaskCount === 1 ? "" : "s"}`}
                   </p>
                 </div>
 
@@ -1340,7 +1285,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                 <div className="p-2 sm:p-3">
                   {visibleRowCount === 0 ? (
                     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-panel-strong)] px-3 py-8 text-center text-sm text-[var(--color-text-muted)]">
-                      No rows match this filter for this project.
+                      No rows yet for this project.
                     </div>
                   ) : (
                     <div className="max-h-[28rem] overflow-y-auto subtle-scroll rounded-xl border border-[var(--color-border)]">
@@ -1380,7 +1325,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                           </tr>
                         </thead>
                         <tbody>
-                          {visibleProjectRows.map((row) => {
+                          {projectRows.map((row) => {
                             const configuredTask = configProject?.tasks.find((item) => item.id === row.taskId);
                             const task = configuredTask ?? null;
                             const hourTypes = task?.hourTypes ?? [
