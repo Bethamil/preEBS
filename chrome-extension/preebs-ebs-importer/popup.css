@@ -71,6 +71,27 @@ legend {
   margin: 0;
 }
 
+.field {
+  margin: 10px 0 6px;
+}
+
+.field span {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.field input {
+  width: 100%;
+  border: 1px solid #c4cad8;
+  border-radius: 8px;
+  padding: 8px;
+  box-sizing: border-box;
+  background: #fff;
+  color: #20222a;
+  font: inherit;
+}
+
 .row {
   display: flex;
   justify-content: flex-end;

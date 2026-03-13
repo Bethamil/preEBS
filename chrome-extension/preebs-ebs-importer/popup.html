@@ -9,14 +9,10 @@
   <body>
     <main class="popup">
       <h1>PreEBS -> EBS</h1>
-      <p class="hint">Open an EBS timecard tab, then paste your exported JSON.</p>
+      <p class="hint">Open an EBS timecard tab, then paste your exported JSON into the textbox.</p>
 
       <label for="jsonInput">Export JSON</label>
       <textarea id="jsonInput" spellcheck="false" placeholder='Paste JSON from preebs-YYYY-MM-DD.json'></textarea>
-
-      <div class="row">
-        <button id="pasteButton" type="button" class="secondary">Paste</button>
-      </div>
 
       <fieldset>
         <legend>Options</legend>
@@ -39,6 +35,11 @@
         <label class="option">
           <input id="clickRecalculate" type="checkbox" checked />
           <span>Click "Opnieuw berekenen" after fill</span>
+        </label>
+
+        <label class="field" for="fillDelayMs">
+          <span>Delay between field updates (ms)</span>
+          <input id="fillDelayMs" type="number" min="0" max="2000" step="20" value="120" />
         </label>
 
         <label class="option">

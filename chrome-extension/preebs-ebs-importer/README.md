@@ -9,6 +9,7 @@ This extension pastes a PreEBS export JSON into Oracle EBS timecard fields.
 - Uses empty rows when no match exists.
 - Optionally clicks `Rij toevoegen` when more rows are needed.
 - Fills Mon-Fri hour fields (`B22_<row>_<day>`).
+- Lets you slow down field writes when EBS clears values that were entered too quickly.
 - Optionally clicks `Opnieuw berekenen`.
 
 ## Install (unpacked)
@@ -23,10 +24,11 @@ This extension pastes a PreEBS export JSON into Oracle EBS timecard fields.
 
 1. Open your EBS timecard page in a tab.
 2. Click the extension icon.
-3. Paste `preebs-YYYY-MM-DD.json` in the textbox.
+3. Paste `preebs-YYYY-MM-DD.json` into the textbox manually.
 4. Choose options.
-5. Click **Run Import**.
-6. Check values in EBS and then click **Opslaan** or **Doorgaan** manually.
+5. Increase `Delay between field updates (ms)` if EBS blanks fields right after import.
+6. Click **Run Import**.
+7. Check values in EBS and then click **Opslaan** or **Doorgaan** manually.
 
 ## Notes
 

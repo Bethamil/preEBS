@@ -1,5 +1,4 @@
 const jsonInput = document.getElementById("jsonInput");
-const pasteButton = document.getElementById("pasteButton");
 const runButton = document.getElementById("runButton");
 const statusNode = document.getElementById("status");
 
@@ -7,10 +6,45 @@ const allowAddRows = document.getElementById("allowAddRows");
 const overwriteRowHours = document.getElementById("overwriteRowHours");
 const clearUntouchedRows = document.getElementById("clearUntouchedRows");
 const clickRecalculate = document.getElementById("clickRecalculate");
+const fillDelayMs = document.getElementById("fillDelayMs");
 const dryRun = document.getElementById("dryRun");
+
+const OPTION_STORAGE_KEY = "popupOptions";
+const DEFAULT_FILL_DELAY_MS = 120;
+
+function sanitizeFillDelayMs(value) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_FILL_DELAY_MS;
+  }
+
+  return Math.min(2000, Math.max(0, parsed));
+}
 
 function setStatus(message) {
   statusNode.textContent = message;
+}
+
+async function executeImportScript(tabId, rawJson, options) {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: importIntoEbsPage,
+      args: [rawJson, options],
+    });
+
+    const outcome = results?.[0]?.result;
+    if (outcome) {
+      return outcome;
+    }
+
+    if (attempt === 1) {
+      setStatus("Starting importer on active tab...");
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  }
+
+  throw new Error("No response from injected script.");
 }
 
 function collectOptions() {
@@ -19,23 +53,55 @@ function collectOptions() {
     overwriteRowHours: overwriteRowHours.checked,
     clearUntouchedRows: clearUntouchedRows.checked,
     clickRecalculate: clickRecalculate.checked,
+    fillDelayMs: sanitizeFillDelayMs(fillDelayMs.value),
     dryRun: dryRun.checked,
   };
 }
 
-pasteButton.addEventListener("click", async () => {
+function applyOptions(options = {}) {
+  allowAddRows.checked = options.allowAddRows ?? true;
+  overwriteRowHours.checked = options.overwriteRowHours ?? true;
+  clearUntouchedRows.checked = options.clearUntouchedRows ?? false;
+  clickRecalculate.checked = options.clickRecalculate ?? true;
+  fillDelayMs.value = String(sanitizeFillDelayMs(options.fillDelayMs));
+  dryRun.checked = options.dryRun ?? false;
+}
+
+async function restoreOptions() {
   try {
-    const text = await navigator.clipboard.readText();
-    if (!text.trim()) {
-      setStatus("Clipboard is empty.");
-      return;
-    }
-    jsonInput.value = text;
-    setStatus("Pasted JSON from clipboard.");
+    const stored = await chrome.storage.local.get(OPTION_STORAGE_KEY);
+    applyOptions(stored?.[OPTION_STORAGE_KEY]);
   } catch (error) {
-    setStatus(`Cannot read clipboard: ${String(error)}`);
+    applyOptions();
+    setStatus(`Cannot restore saved options: ${String(error)}`);
   }
-});
+}
+
+async function persistOptions() {
+  try {
+    const options = collectOptions();
+    fillDelayMs.value = String(options.fillDelayMs);
+    await chrome.storage.local.set({ [OPTION_STORAGE_KEY]: options });
+  } catch (error) {
+    setStatus(`Cannot save options: ${String(error)}`);
+  }
+}
+
+applyOptions();
+void restoreOptions();
+
+for (const control of [
+  allowAddRows,
+  overwriteRowHours,
+  clearUntouchedRows,
+  clickRecalculate,
+  fillDelayMs,
+  dryRun,
+]) {
+  control.addEventListener("change", () => {
+    void persistOptions();
+  });
+}
 
 runButton.addEventListener("click", async () => {
   const rawJson = jsonInput.value.trim();
@@ -61,17 +127,7 @@ runButton.addEventListener("click", async () => {
     }
 
     const options = collectOptions();
-
-    const results = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: importIntoEbsPage,
-      args: [rawJson, options],
-    });
-
-    const outcome = results?.[0]?.result;
-    if (!outcome) {
-      throw new Error("No response from injected script.");
-    }
+    const outcome = await executeImportScript(tab.id, rawJson, options);
 
     if (!outcome.ok) {
       throw new Error(outcome.error || "Importer failed.");
@@ -86,14 +142,26 @@ runButton.addEventListener("click", async () => {
 });
 
 function importIntoEbsPage(rawJson, options) {
+  const defaultFillDelayMs = 120;
+  const sanitizeInjectedFillDelayMs = (value) => {
+    const parsed = Number.parseInt(String(value ?? ""), 10);
+    if (!Number.isFinite(parsed)) {
+      return defaultFillDelayMs;
+    }
+
+    return Math.min(2000, Math.max(0, parsed));
+  };
+
   const opts = {
     allowAddRows: true,
     overwriteRowHours: true,
     clearUntouchedRows: false,
     clickRecalculate: true,
+    fillDelayMs: defaultFillDelayMs,
     dryRun: false,
     ...options,
   };
+  opts.fillDelayMs = sanitizeInjectedFillDelayMs(opts.fillDelayMs);
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -426,34 +494,39 @@ function importIntoEbsPage(rawJson, options) {
     input.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
+  async function writeInputValue(input, value) {
+    if (!(input instanceof HTMLInputElement)) {
+      return;
+    }
+
+    input.focus();
+    setInputValue(input, value);
+    input.blur();
+
+    if (opts.fillDelayMs > 0) {
+      await sleep(opts.fillDelayMs);
+    }
+  }
+
   async function setLovSequence(row, desired) {
     const currentProject = String(row.projectInput.value ?? "").trim();
     const currentTask = String(row.taskInput?.value ?? "").trim();
     const currentHourType = String(row.hourTypeInput?.value ?? "").trim();
 
     if (!equivalent(currentProject, desired.projectName)) {
-      row.projectInput.focus();
-      setInputValue(row.projectInput, desired.projectName);
-      row.projectInput.blur();
-      await sleep(180);
+      await writeInputValue(row.projectInput, desired.projectName);
     }
 
     if (row.taskInput && !equivalent(currentTask, desired.taskName)) {
-      row.taskInput.focus();
-      setInputValue(row.taskInput, desired.taskName);
-      row.taskInput.blur();
-      await sleep(180);
+      await writeInputValue(row.taskInput, desired.taskName);
     }
 
     if (row.hourTypeInput && !equivalent(currentHourType, desired.hourTypeName)) {
-      row.hourTypeInput.focus();
-      setInputValue(row.hourTypeInput, desired.hourTypeName);
-      row.hourTypeInput.blur();
-      await sleep(120);
+      await writeInputValue(row.hourTypeInput, desired.hourTypeName);
     }
   }
 
-  function setMonFriHours(row, desiredHours, overwrite) {
+  async function setMonFriHours(row, desiredHours, overwrite) {
     for (let dayIndex = 0; dayIndex < 5; dayIndex += 1) {
       const input = row.hoursInputs[dayIndex];
       if (!(input instanceof HTMLInputElement)) {
@@ -465,13 +538,11 @@ function importIntoEbsPage(rawJson, options) {
         continue;
       }
 
-      input.focus();
-      setInputValue(input, formatHourValue(hour));
-      input.blur();
+      await writeInputValue(input, formatHourValue(hour));
     }
   }
 
-  function clearMonFriHours(row) {
+  async function clearMonFriHours(row) {
     for (let dayIndex = 0; dayIndex < 5; dayIndex += 1) {
       const input = row.hoursInputs[dayIndex];
       if (!(input instanceof HTMLInputElement)) {
@@ -482,9 +553,7 @@ function importIntoEbsPage(rawJson, options) {
         continue;
       }
 
-      input.focus();
-      setInputValue(input, "");
-      input.blur();
+      await writeInputValue(input, "");
     }
   }
 
@@ -566,7 +635,7 @@ function importIntoEbsPage(rawJson, options) {
 
       for (const assignment of finalPlan.assignments) {
         await setLovSequence(assignment.row, assignment.desired);
-        setMonFriHours(assignment.row, assignment.desired.hours, opts.overwriteRowHours);
+        await setMonFriHours(assignment.row, assignment.desired.hours, opts.overwriteRowHours);
       }
 
       let clearedRows = 0;
@@ -576,7 +645,7 @@ function importIntoEbsPage(rawJson, options) {
           if (!hasMonFriHours) {
             continue;
           }
-          clearMonFriHours(untouchedRow);
+          await clearMonFriHours(untouchedRow);
           clearedRows += 1;
         }
       }
@@ -598,6 +667,7 @@ function importIntoEbsPage(rawJson, options) {
           `Used empty/new rows: ${fromEmpty}`,
           `Rows added by button: ${addedRows}`,
           `Untouched rows cleared: ${clearedRows}`,
+          `Delay between field updates: ${opts.fillDelayMs}ms`,
           `Recalculate clicked: ${recalculated ? "yes" : "no"}`,
           "Tip: review values and click Opslaan / Doorgaan yourself.",
         ].join("\n"),
