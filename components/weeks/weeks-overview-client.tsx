@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DeleteIconButton } from "@/components/ui/delete-icon-button";
 import { Input } from "@/components/ui/input";
+import { JsonExportMenu } from "@/components/ui/json-export-menu";
 import { useToast } from "@/components/ui/toast";
 import { currentWeekStart, formatWeekRange, getIsoWeekNumber, normalizeWeekStart } from "@/lib/date";
 import type { WeekSummary } from "@/lib/types";
@@ -72,28 +73,6 @@ export function WeeksOverviewClient() {
     () => weeks.reduce((sum, week) => sum + week.totalHours, 0),
     [weeks],
   );
-
-  const exportWeek = async (weekStartDate: string) => {
-    const response = await fetch(`/api/weeks/${weekStartDate}/export`, {
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      pushToast("Export failed. The selected week may be empty.", "error");
-      return;
-    }
-
-    const json = await response.text();
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `preebs-${weekStartDate}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-
-    pushToast("JSON export ready.", "success");
-  };
 
   const addWeek = async () => {
     const normalizedWeekStartDate = normalizeWeekStart(newWeekStartDate);
@@ -275,13 +254,16 @@ export function WeeksOverviewClient() {
                               Open/Edit
                             </Button>
                           </Link>
-                          <Button
+                          <JsonExportMenu
+                            exportUrl={`/api/weeks/${week.weekStartDate}/export`}
+                            fallbackFilename={`preebs-${week.weekStartDate}.json`}
+                            buttonLabel="Export JSON"
+                            fetchErrorMessage="Export failed. The selected week may be empty."
+                            copySuccessMessage="JSON copied."
+                            downloadSuccessMessage="JSON downloaded."
                             variant="ghost"
                             size="sm"
-                            onClick={() => exportWeek(week.weekStartDate)}
-                          >
-                            Export JSON
-                          </Button>
+                          />
                           <DeleteIconButton
                             size="sm"
                             label={`Delete week ${week.weekStartDate}`}

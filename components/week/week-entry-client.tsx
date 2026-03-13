@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DeleteIconButton } from "@/components/ui/delete-icon-button";
 import { Input } from "@/components/ui/input";
+import { JsonExportMenu } from "@/components/ui/json-export-menu";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -863,23 +864,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
     pushToast("Previous week copied.", "success");
   };
 
-  const exportJson = async () => {
-    const response = await fetch(`/api/weeks/${weekStartDate}/export`, { cache: "no-store" });
-    if (!response.ok) {
-      pushToast("Save this week before exporting.", "error");
-      return;
-    }
-    const json = await response.text();
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `preebs-${weekStartDate}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-    pushToast("Export complete.", "success");
-  };
-
   const focusExistingComboRow = (combo: Pick<ComboOption, "projectId" | "taskId" | "hourTypeId">): boolean => {
     const existingRow = rows.find(
       (row) =>
@@ -1020,9 +1004,16 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
             <Button variant="secondary" size="sm" onClick={copyPrevious}>
               Copy Previous
             </Button>
-            <Button variant="ghost" size="sm" onClick={exportJson}>
-              Export JSON
-            </Button>
+            <JsonExportMenu
+              exportUrl={`/api/weeks/${weekStartDate}/export`}
+              fallbackFilename={`preebs-${weekStartDate}.json`}
+              buttonLabel="Export JSON"
+              fetchErrorMessage="Save this week before exporting."
+              copySuccessMessage="JSON copied."
+              downloadSuccessMessage="JSON downloaded."
+              variant="ghost"
+              size="sm"
+            />
           </div>
         </div>
 

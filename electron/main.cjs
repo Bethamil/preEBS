@@ -82,24 +82,52 @@ function createMainWindow(url) {
   mainWindow.loadURL(url);
 }
 
-function resolveServerEntry() {
-  const unpackedServerEntry = path.join(
-    process.resourcesPath,
-    "app.asar.unpacked",
-    ".next",
-    "standalone",
-    "server.js",
-  );
-  const devServerEntry = path.join(path.resolve(__dirname, ".."), ".next", "standalone", "server.js");
-  const candidates = app.isPackaged ? [unpackedServerEntry] : [devServerEntry, unpackedServerEntry];
+function findServerEntryInStandalone(standaloneRoot) {
+  const flatServerEntry = path.join(standaloneRoot, "server.js");
+  if (fs.existsSync(flatServerEntry)) {
+    return flatServerEntry;
+  }
 
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
+  if (!fs.existsSync(standaloneRoot)) {
+    return null;
+  }
+
+  const queue = [standaloneRoot];
+
+  while (queue.length > 0) {
+    const currentDir = queue.shift();
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const entryPath = path.join(currentDir, entry.name);
+
+      if (entry.isDirectory()) {
+        queue.push(entryPath);
+        continue;
+      }
+
+      if (entry.isFile() && entry.name === "server.js") {
+        return entryPath;
+      }
+    }
+  }
+
+  return null;
+}
+
+function resolveServerEntry() {
+  const unpackedStandaloneRoot = path.join(process.resourcesPath, "app.asar.unpacked", ".next", "standalone");
+  const devStandaloneRoot = path.join(path.resolve(__dirname, ".."), ".next", "standalone");
+  const roots = app.isPackaged ? [unpackedStandaloneRoot] : [devStandaloneRoot, unpackedStandaloneRoot];
+
+  for (const root of roots) {
+    const candidate = findServerEntryInStandalone(root);
+    if (candidate) {
       return candidate;
     }
   }
 
-  return candidates[0];
+  return path.join(roots[0], "server.js");
 }
 
 async function startBundledServer() {
