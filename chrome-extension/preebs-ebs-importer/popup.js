@@ -1,6 +1,7 @@
 const jsonInput = document.getElementById("jsonInput");
 const runButton = document.getElementById("runButton");
 const statusNode = document.getElementById("status");
+const extensionApi = globalThis.browser ?? globalThis.chrome;
 
 const allowAddRows = document.getElementById("allowAddRows");
 const overwriteRowHours = document.getElementById("overwriteRowHours");
@@ -27,7 +28,7 @@ function setStatus(message) {
 
 async function executeImportScript(tabId, rawJson, options) {
   for (let attempt = 1; attempt <= 2; attempt += 1) {
-    const results = await chrome.scripting.executeScript({
+    const results = await extensionApi.scripting.executeScript({
       target: { tabId },
       func: importIntoEbsPage,
       args: [rawJson, options],
@@ -69,7 +70,7 @@ function applyOptions(options = {}) {
 
 async function restoreOptions() {
   try {
-    const stored = await chrome.storage.local.get(OPTION_STORAGE_KEY);
+    const stored = await extensionApi.storage.local.get(OPTION_STORAGE_KEY);
     applyOptions(stored?.[OPTION_STORAGE_KEY]);
   } catch (error) {
     applyOptions();
@@ -81,7 +82,7 @@ async function persistOptions() {
   try {
     const options = collectOptions();
     fillDelayMs.value = String(options.fillDelayMs);
-    await chrome.storage.local.set({ [OPTION_STORAGE_KEY]: options });
+    await extensionApi.storage.local.set({ [OPTION_STORAGE_KEY]: options });
   } catch (error) {
     setStatus(`Cannot save options: ${String(error)}`);
   }
@@ -121,7 +122,7 @@ runButton.addEventListener("click", async () => {
   setStatus("Running importer on active tab...");
 
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await extensionApi.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) {
       throw new Error("No active tab found.");
     }
