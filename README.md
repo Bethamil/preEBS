@@ -2,14 +2,14 @@
 
 ![PreEBS logo](public/logo.png)
 
-Enter your hours in PreEBS, then import them into EBS with the included Chrome extension.
+Enter your hours in PreEBS, then import them into EBS with the included Chrome or Firefox extension.
 
 ## Workflow
 
 1. Configure projects/tasks in `/config` (EBS name + optional human label).
 2. Enter hours in `/week/[weekStartDate]`.
 3. Export JSON from PreEBS.
-4. Import JSON into EBS with the Chrome extension.
+4. Import JSON into EBS with the browser extension.
 
 ## Config import/export
 
@@ -34,6 +34,26 @@ Install:
 Use:
 
 1. Open EBS timecard page in Chrome
+2. Click the extension icon
+3. Paste `preebs-YYYY-MM-DD.json`
+4. Click **Run Import**
+5. Review and click **Opslaan** / **Doorgaan** in EBS
+
+## Firefox extension (JSON -> EBS)
+
+Extension folder:
+
+- `/Users/user/projects/PreEBS/firefox-extension/preebs-ebs-importer`
+
+Install:
+
+1. Open `about:debugging#/runtime/this-firefox`
+2. Click **Load Temporary Add-on...**
+3. Select `/Users/user/projects/PreEBS/firefox-extension/preebs-ebs-importer/manifest.json`
+
+Use:
+
+1. Open EBS timecard page in Firefox
 2. Click the extension icon
 3. Paste `preebs-YYYY-MM-DD.json`
 4. Click **Run Import**
