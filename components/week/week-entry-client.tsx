@@ -1256,15 +1256,14 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                     >
                       {WEEKDAY_LABELS.map((label, index) => {
                         const dayTotal = projectTotalsByDay[index] ?? 0;
+                        if (dayTotal <= 0) {
+                          return null;
+                        }
+
                         return (
                           <span
                             key={`${projectId}-${label}-header-total`}
-                            className={cn(
-                              "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.04em]",
-                              dayTotal > 0
-                                ? "border-[var(--color-border-strong)] bg-[var(--color-panel-strong)] text-[var(--color-text-soft)]"
-                                : "border-[var(--color-border)] text-[var(--color-text-muted)]",
-                            )}
+                            className="inline-flex items-center gap-1 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-panel-strong)] px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.04em] text-[var(--color-text-soft)]"
                           >
                             <span>{label}</span>
                             <span className="font-mono text-[11px] normal-case">{formatHours(dayTotal)}h</span>
