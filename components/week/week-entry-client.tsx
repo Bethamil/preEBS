@@ -1270,13 +1270,17 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                           </span>
                         );
                       })}
-                      <span className="inline-flex items-center gap-1 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-panel-strong)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-soft)]">
-                        <span>Total</span>
-                        <span className="font-mono text-[11px] normal-case">{formatHours(total)}h</span>
-                      </span>
-                      <span className="text-[11px] text-[var(--color-text-muted)]">
-                        {taskCount} task{taskCount === 1 ? "" : "s"}
-                      </span>
+                      {total > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-panel-strong)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-soft)]">
+                          <span>Total</span>
+                          <span className="font-mono text-[11px] normal-case">{formatHours(total)}h</span>
+                        </span>
+                      )}
+                      {taskCount > 0 && (
+                        <span className="text-[11px] text-[var(--color-text-muted)]">
+                          {taskCount} task{taskCount === 1 ? "" : "s"}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <span
