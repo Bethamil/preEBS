@@ -1206,6 +1206,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
           } = summary;
           const isExpanded = openProjectIds.includes(projectId);
           const visibleRowCount = projectRows.length;
+          const isEmptyProject = total <= 0;
 
           return (
             <section
@@ -1216,73 +1217,76 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
               <header className="border-b border-[var(--color-border)] px-3 py-3">
                 <button
                   type="button"
-                  className="flex w-full min-w-0 items-start justify-between gap-3 rounded-xl px-1 py-1 text-left transition hover:bg-[var(--color-panel-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+                  className="flex w-full min-w-0 items-center justify-between gap-3 rounded-xl px-1 py-1 text-left transition hover:bg-[var(--color-panel-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
                   onClick={() => toggleProjectOpen(projectId)}
                   aria-expanded={isExpanded}
                   aria-controls={`project-panel-${projectId}`}
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span
-                        className="h-2.5 w-2.5 rounded-full"
-                        style={{ backgroundColor: accentColor }}
-                        aria-hidden
-                      />
+                      {!isEmptyProject && (
+                        <span
+                          className="h-2.5 w-2.5 rounded-full"
+                          style={{ backgroundColor: accentColor }}
+                          aria-hidden
+                        />
+                      )}
                       <h3 className="truncate text-base font-semibold">{projectName}</h3>
-                      {isCustom && (
+                      {!isEmptyProject && isCustom && (
                         <span className="rounded-full border border-[var(--color-border-strong)] bg-[var(--color-panel-strong)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-soft)]">
                           Custom
                         </span>
                       )}
-                      {status === "warning" && (
+                      {!isEmptyProject && status === "warning" && (
                         <span className="status-warn rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]">
                           Warning
                         </span>
                       )}
                     </div>
-                    {!isCustom &&
+                    {!isEmptyProject &&
+                      !isCustom &&
                       projectEbsName &&
                       safeTrim(projectEbsName) !== safeTrim(projectName) && (
                         <p className="mt-1 text-xs text-[var(--color-text-muted)]">
                           EBS: {projectEbsName}
                         </p>
                       )}
-                    <div
-                      className="mt-2 flex flex-wrap items-center gap-1.5"
-                      aria-label={`${projectName} daily totals`}
-                    >
-                      {WEEKDAY_LABELS.map((label, index) => {
-                        const dayTotal = projectTotalsByDay[index] ?? 0;
-                        if (dayTotal <= 0) {
-                          return null;
-                        }
+                    {!isEmptyProject && (
+                      <div
+                        className="mt-2 flex flex-wrap items-center gap-1.5"
+                        aria-label={`${projectName} daily totals`}
+                      >
+                        {WEEKDAY_LABELS.map((label, index) => {
+                          const dayTotal = projectTotalsByDay[index] ?? 0;
+                          if (dayTotal <= 0) {
+                            return null;
+                          }
 
-                        return (
-                          <span
-                            key={`${projectId}-${label}-header-total`}
-                            className="inline-flex items-center gap-1 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-panel-strong)] px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.04em] text-[var(--color-text-soft)]"
-                          >
-                            <span>{label}</span>
-                            <span className="font-mono text-[11px] normal-case">{formatHours(dayTotal)}h</span>
-                          </span>
-                        );
-                      })}
-                      {total > 0 && (
+                          return (
+                            <span
+                              key={`${projectId}-${label}-header-total`}
+                              className="inline-flex items-center gap-1 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-panel-strong)] px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.04em] text-[var(--color-text-soft)]"
+                            >
+                              <span>{label}</span>
+                              <span className="font-mono text-[11px] normal-case">{formatHours(dayTotal)}h</span>
+                            </span>
+                          );
+                        })}
                         <span className="inline-flex items-center gap-1 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-panel-strong)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-soft)]">
                           <span>Total</span>
                           <span className="font-mono text-[11px] normal-case">{formatHours(total)}h</span>
                         </span>
-                      )}
-                      {taskCount > 0 && (
-                        <span className="text-[11px] text-[var(--color-text-muted)]">
-                          {taskCount} task{taskCount === 1 ? "" : "s"}
-                        </span>
-                      )}
-                    </div>
+                        {taskCount > 0 && (
+                          <span className="text-[11px] text-[var(--color-text-muted)]">
+                            {taskCount} task{taskCount === 1 ? "" : "s"}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <span
                     className={cn(
-                      "mt-0.5 inline-flex h-8 shrink-0 items-center justify-center text-[var(--color-text-muted)] transition-transform duration-200",
+                      "inline-flex h-8 shrink-0 items-center justify-center text-[var(--color-text-muted)] transition-transform duration-200",
                       isExpanded && "rotate-90 text-[var(--color-text)]",
                     )}
                     aria-hidden
