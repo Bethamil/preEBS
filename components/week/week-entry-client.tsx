@@ -988,9 +988,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                       Week {isoWeek.weekNumber}
                     </span>
                   )}
-                  <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-panel-elevated)] px-2.5 py-1 text-xs font-medium text-[var(--color-text-soft)]">
-                    {rows.length} row{rows.length === 1 ? "" : "s"} total
-                  </span>
                   <span
                     className={cn(
                       "rounded-full border px-2.5 py-1 text-xs font-semibold",
