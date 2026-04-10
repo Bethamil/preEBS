@@ -955,242 +955,282 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   }
 
   const hasConfigProjects = configProjects.length > 0;
+  const commandButtonClassName =
+    "rounded-full bg-[var(--color-panel-elevated)] font-mono text-[11px] font-semibold uppercase tracking-[0.08em]";
 
   return (
-    <section className="space-y-4 pb-28">
-      <Card className="p-4 sm:p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)]">
-              Week Entry
-            </p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
-              {formatWeekRange(
-                weekStartDate as WeekDocument["weekStartDate"],
-                (weekDates[4] ?? weekStartDate) as WeekDocument["weekStartDate"],
-              )}
-            </h1>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-[var(--color-text-muted)]">
-              {isoWeek && (
-                <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-panel-strong)] px-2 py-0.5 text-xs font-semibold text-[var(--color-text-soft)]">
-                  Week {isoWeek.weekNumber}
-                </span>
-              )}
-              <span>
-                {rows.length} row{rows.length === 1 ? "" : "s"} total
-              </span>
-              <span
-                className={cn(
-                  "rounded-full border px-2.5 py-0.5 text-xs font-semibold",
-                  weekHoursStatus === "match" && "status-ok",
-                  weekHoursStatus === "under" && "status-warn",
-                  weekHoursStatus === "over" && "status-danger",
-                )}
-              >
-                {weekHoursStatus === "match" &&
-                  `Matches required (${formatHours(weekTotalHours)}/${formatHours(requiredWeekHours)}h)`}
-                {weekHoursStatus === "under" &&
-                  `Missing ${formatHours(Math.abs(weekHoursDelta))}h (${formatHours(weekTotalHours)}/${formatHours(requiredWeekHours)}h)`}
-                {weekHoursStatus === "over" &&
-                  `Over by ${formatHours(weekHoursDelta)}h (${formatHours(weekTotalHours)}/${formatHours(requiredWeekHours)}h)`}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={addCustomProjectRow}>
-              Add Custom Project
-            </Button>
-            <Button variant="secondary" size="sm" onClick={copyPrevious}>
-              Copy Previous
-            </Button>
-            <JsonExportMenu
-              exportUrl={`/api/weeks/${weekStartDate}/export`}
-              fallbackFilename={`preebs-${weekStartDate}.json`}
-              buttonLabel="Export JSON"
-              fetchErrorMessage="Save this week before exporting."
-              copySuccessMessage="JSON copied."
-              downloadSuccessMessage="JSON downloaded."
-              variant="ghost"
-              size="sm"
-            />
-          </div>
-        </div>
-
-        {exceedsMax && (
-          <div className="status-danger mt-3 rounded-xl border px-3 py-2 text-sm">
-            Daily max exceeded for{" "}
-            {exceededDayIndexes
-              .map(
-                (dayIndex) =>
-                  `${WEEKDAY_LABELS[dayIndex]} (${formatHours(totalsByDay[dayIndex])}h > ${formatHours(maxHoursPerDay[dayIndex])}h)`,
-              )
-              .join(", ")}
-            .
-          </div>
-        )}
-
-      </Card>
-
-      <Card className="p-4 sm:p-5">
-        <div className="space-y-3">
-          <div className="space-y-1">
-            <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-              Quick Add Search
-            </span>
-            <div className="relative">
-              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--color-text-muted)]">
-                <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" aria-hidden>
-                  <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.3" />
-                  <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-                </svg>
-              </span>
-              <Input
-                ref={quickComboSearchInputRef}
-                value={quickComboSearch}
-                disabled={!hasConfigProjects}
-                className="h-11 rounded-xl border-[var(--color-border)] bg-[var(--color-panel-strong)] pl-9 pr-16 text-sm shadow-none"
-                onChange={(event) => setQuickComboSearch(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter") {
-                    return;
-                  }
-                  event.preventDefault();
-                  const firstMatch = quickComboMatches[0];
-                  if (!firstMatch) {
-                    pushToast("No matching combo found.", "info");
-                    return;
-                  }
-                  quickAddFromCombo(firstMatch);
-                }}
-                placeholder={
-                  !hasConfigProjects
-                    ? "Configure projects to use quick add"
-                    : shouldShowHourType
-                    ? "Search project, task, or hour type..."
-                    : "Search project or task..."
-                }
-              />
-              <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                <kbd className="inline-flex h-6 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-panel)] px-2 text-[11px] font-medium text-[var(--color-text-muted)]">
-                  ⌘K
-                </kbd>
-              </span>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {hasConfigProjects && quickComboMatches.slice(0, 6).map((combo) => (
-              <button
-                key={comboKey(combo.projectId, combo.taskId, combo.hourTypeId)}
-                type="button"
-                className="inline-flex max-w-full items-center gap-1 rounded-full border border-[var(--color-border)] bg-[var(--color-panel-strong)] px-2.5 py-1 text-xs text-[var(--color-text-soft)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
-                onClick={() => quickAddFromCombo(combo)}
-                title={combo.label}
-              >
-                {combo.isRecent && (
-                  <span className="rounded-full bg-[var(--color-panel-strong)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-                    Recent
-                  </span>
-                )}
-                {combo.isNew && (
-                  <span className="rounded-full bg-[var(--color-panel-strong)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--color-accent)]">
-                    New
-                  </span>
-                )}
-                <span className="truncate">{combo.label}</span>
-              </button>
-            ))}
-            {!hasConfigProjects && (
-              <p className="text-xs text-[var(--color-text-muted)]">
-                Quick add shows configured combos. Add projects in Config first.
-              </p>
-            )}
-            {hasConfigProjects && quickComboMatches.length === 0 && (
-              <p className="text-xs text-[var(--color-text-muted)]">No combo matches this search.</p>
-            )}
-          </div>
-        </div>
-      </Card>
-
-      <Card className="p-4 sm:p-5">
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-          {WEEKDAY_LABELS.map((label, index) => {
-            const dayTotal = formatHours(totalsByDay[index]);
-            const dayMax = formatHours(maxHoursPerDay[index]);
-
-            return (
-              <div
-                key={label}
-                className={cn(
-                  "flex min-h-28 cursor-pointer flex-col rounded-xl border px-3 py-2.5 transition hover:border-[var(--color-ring)]",
-                  exceededDayIndexSet.has(index)
-                    ? "status-danger"
-                    : exactDayIndexSet.has(index)
-                      ? "status-ok"
-                      : "border-[var(--color-border)] bg-[var(--color-panel-strong)]",
-                  focusedDayIndex === index && "ring-2 ring-[var(--color-ring)]",
-                )}
-                role="button"
-                tabIndex={0}
-                onClick={() => setFocusedDayIndex(index)}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter" && event.key !== " ") {
-                    return;
-                  }
-                  event.preventDefault();
-                  setFocusedDayIndex(index);
-                }}
-                aria-label={`Focus ${label}`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="text-left">
-                    <p className="text-xl font-bold uppercase tracking-[0.04em] leading-none">{label}</p>
-                    <p className="mt-1 text-[11px] text-[var(--color-text-muted)]">{formatDateLabel(weekDates[index])}</p>
-                  </div>
-                  <button
-                    type="button"
-                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] text-[var(--color-text-muted)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      clearDay(index);
-                    }}
-                    aria-label={`Clear ${label}`}
-                    title={`Clear ${label}`}
+    <section className="pb-28">
+      <Card className="overflow-hidden p-0">
+        <div className="relative">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-70"
+            aria-hidden
+            style={{
+              background:
+                "radial-gradient(circle at top right, rgba(99,222,132,0.1), transparent 28%), radial-gradient(circle at bottom left, rgba(143,99,222,0.08), transparent 30%)",
+            }}
+          />
+          <div className="relative p-4 sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="max-w-3xl">
+                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)]">
+                  Week Entry
+                </p>
+                <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-4xl">
+                  {formatWeekRange(
+                    weekStartDate as WeekDocument["weekStartDate"],
+                    (weekDates[4] ?? weekStartDate) as WeekDocument["weekStartDate"],
+                  )}
+                </h1>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-[var(--color-text-muted)]">
+                  {isoWeek && (
+                    <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-panel-elevated)] px-2.5 py-1 text-xs font-semibold text-[var(--color-text-soft)]">
+                      Week {isoWeek.weekNumber}
+                    </span>
+                  )}
+                  <span
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 text-xs font-semibold",
+                      weekHoursStatus === "match" && "status-ok",
+                      weekHoursStatus === "under" && "status-warn",
+                      weekHoursStatus === "over" && "status-danger",
+                    )}
                   >
-                    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" aria-hidden>
-                      <path
-                        d="M3 4h10M6.1 2.8h3.8M5.3 4v8.2c0 .5.4.9.9.9h3.6c.5 0 .9-.4.9-.9V4"
-                        stroke="currentColor"
-                        strokeWidth="1.3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      <path d="M7 6.4v4.2M9 6.4v4.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-                    </svg>
-                  </button>
-                </div>
-                <div className="mt-auto flex items-end justify-between gap-2">
-                  <p className="text-lg font-semibold leading-none">{dayTotal}h</p>
-                  <p className="rounded-full border border-[var(--color-border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-                    Max {dayMax}h
-                  </p>
+                    {weekHoursStatus === "match" &&
+                      `Matches required (${formatHours(weekTotalHours)}/${formatHours(requiredWeekHours)}h)`}
+                    {weekHoursStatus === "under" &&
+                      `Missing ${formatHours(Math.abs(weekHoursDelta))}h (${formatHours(weekTotalHours)}/${formatHours(requiredWeekHours)}h)`}
+                    {weekHoursStatus === "over" &&
+                      `Over by ${formatHours(weekHoursDelta)}h (${formatHours(requiredWeekHours)}h target)`}
+                  </span>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      </Card>
 
-      <div className="space-y-3">
-        {projectSummaries.length === 0 && (
-          <Card className="p-6 text-center">
-            <p className="text-sm text-[var(--color-text-muted)]">
-              No rows yet. Add a configured row or a custom project to start this week.
-            </p>
-          </Card>
-        )}
-        {projectSummaries.map((summary) => {
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className={commandButtonClassName}
+                  onClick={addCustomProjectRow}
+                >
+                  Add Custom Project
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className={commandButtonClassName}
+                  onClick={copyPrevious}
+                >
+                  Copy Previous
+                </Button>
+                <JsonExportMenu
+                  exportUrl={`/api/weeks/${weekStartDate}/export`}
+                  fallbackFilename={`preebs-${weekStartDate}.json`}
+                  buttonLabel="Export JSON"
+                  fetchErrorMessage="Save this week before exporting."
+                  copySuccessMessage="JSON copied."
+                  downloadSuccessMessage="JSON downloaded."
+                  variant="ghost"
+                  size="sm"
+                  buttonClassName={commandButtonClassName}
+                />
+              </div>
+            </div>
+
+            {exceedsMax && (
+              <div className="status-danger mt-4 rounded-2xl border px-3 py-2 text-sm">
+                Daily max exceeded for{" "}
+                {exceededDayIndexes
+                  .map(
+                    (dayIndex) =>
+                      `${WEEKDAY_LABELS[dayIndex]} (${formatHours(totalsByDay[dayIndex])}h > ${formatHours(maxHoursPerDay[dayIndex])}h)`,
+                  )
+                  .join(", ")}
+                .
+              </div>
+            )}
+          </div>
+
+          <div className="relative grid border-t border-[var(--color-border)] lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+            <div className="space-y-3 p-4 sm:p-6 lg:border-r lg:border-[var(--color-border)]">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+                  Quick Add Search
+                </span>
+                <span className="text-xs text-[var(--color-text-muted)]">Fast project jump</span>
+              </div>
+
+              <div className="relative">
+                <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--color-text-muted)]">
+                  <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" aria-hidden>
+                    <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.3" />
+                    <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                  </svg>
+                </span>
+                <Input
+                  ref={quickComboSearchInputRef}
+                  value={quickComboSearch}
+                  disabled={!hasConfigProjects}
+                  className="h-12 rounded-2xl border-[var(--color-border)] bg-[var(--color-panel-elevated)] pl-9 pr-16 text-sm shadow-none"
+                  onChange={(event) => setQuickComboSearch(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter") {
+                      return;
+                    }
+                    event.preventDefault();
+                    const firstMatch = quickComboMatches[0];
+                    if (!firstMatch) {
+                      pushToast("No matching combo found.", "info");
+                      return;
+                    }
+                    quickAddFromCombo(firstMatch);
+                  }}
+                  placeholder={
+                    !hasConfigProjects
+                      ? "Configure projects to use quick add"
+                      : shouldShowHourType
+                        ? "Search project, task, or hour type..."
+                        : "Search project or task..."
+                  }
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
+                  <kbd className="inline-flex h-7 items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] px-2 text-[11px] font-medium text-[var(--color-text-muted)]">
+                    ⌘K
+                  </kbd>
+                </span>
+              </div>
+
+              <div className="flex h-16 flex-wrap content-start items-start gap-2 overflow-hidden">
+                {hasConfigProjects && quickComboMatches.slice(0, 6).map((combo) => (
+                  <button
+                    key={comboKey(combo.projectId, combo.taskId, combo.hourTypeId)}
+                    type="button"
+                    className="inline-flex max-w-full items-center gap-1 rounded-full border border-[var(--color-border)] bg-[var(--color-panel-elevated)] px-2.5 py-1 text-xs text-[var(--color-text-soft)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+                    onClick={() => quickAddFromCombo(combo)}
+                    title={combo.label}
+                  >
+                    {combo.isRecent && (
+                      <span className="rounded-full bg-[var(--color-panel-elevated)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+                        Recent
+                      </span>
+                    )}
+                    {combo.isNew && (
+                      <span className="rounded-full bg-[var(--color-panel-elevated)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--color-accent)]">
+                        New
+                      </span>
+                    )}
+                    <span className="truncate">{combo.label}</span>
+                  </button>
+                ))}
+                {!hasConfigProjects && (
+                  <p className="text-xs text-[var(--color-text-muted)]">
+                    Quick add shows configured combos. Add projects in Config first.
+                  </p>
+                )}
+                {hasConfigProjects && quickComboMatches.length === 0 && (
+                  <p className="text-xs text-[var(--color-text-muted)]">No combo matches this search.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex overflow-hidden">
+              <div className="grid min-h-full w-full gap-px bg-[var(--color-border)] sm:grid-cols-5">
+                  {WEEKDAY_LABELS.map((label, index) => {
+                    const dayTotal = formatHours(totalsByDay[index]);
+                    const dayMax = formatHours(maxHoursPerDay[index]);
+
+                    return (
+                      <div
+                        key={label}
+                        className={cn(
+                          "group flex h-full min-h-30 cursor-pointer flex-col justify-between bg-[var(--color-panel-elevated)] px-3 py-3 transition sm:min-h-32",
+                          !exceededDayIndexSet.has(index) &&
+                            !exactDayIndexSet.has(index) &&
+                            "hover:bg-[var(--color-panel)]",
+                          exceededDayIndexSet.has(index) && "text-[var(--color-status-danger-text)]",
+                          exactDayIndexSet.has(index) && "text-[var(--color-status-ok-text)]",
+                          focusedDayIndex === index && "ring-2 ring-inset ring-[var(--color-ring)]",
+                        )}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setFocusedDayIndex(index)}
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter" && event.key !== " ") {
+                            return;
+                          }
+                          event.preventDefault();
+                          setFocusedDayIndex(index);
+                        }}
+                        aria-label={`Focus ${label}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="text-left">
+                            <p
+                              className={cn(
+                                "text-base font-semibold uppercase tracking-[0.04em] leading-none sm:text-lg",
+                                exceededDayIndexSet.has(index) && "text-[var(--color-status-danger-text)]",
+                                exactDayIndexSet.has(index) && "text-[var(--color-status-ok-text)]",
+                              )}
+                            >
+                              {label}
+                            </p>
+                            <p className="mt-1 text-[11px] text-[var(--color-text-muted)]">
+                              {formatDateLabel(weekDates[index])}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] text-[var(--color-text-muted)] opacity-0 transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)] group-hover:opacity-100 group-focus-within:opacity-100"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              clearDay(index);
+                            }}
+                            aria-label={`Clear ${label}`}
+                            title={`Clear ${label}`}
+                          >
+                            <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" aria-hidden>
+                              <path
+                                d="M3 4h10M6.1 2.8h3.8M5.3 4v8.2c0 .5.4.9.9.9h3.6c.5 0 .9-.4.9-.9V4"
+                                stroke="currentColor"
+                                strokeWidth="1.3"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <path d="M7 6.4v4.2M9 6.4v4.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                            </svg>
+                          </button>
+                        </div>
+                        <div className="mt-4 flex items-end justify-between gap-2">
+                          <p
+                            className={cn(
+                              "text-[2rem] font-semibold leading-none sm:text-3xl",
+                              exceededDayIndexSet.has(index) && "text-[var(--color-status-danger-text)]",
+                              exactDayIndexSet.has(index) && "text-[var(--color-status-ok-text)]",
+                            )}
+                          >
+                            {dayTotal}h
+                          </p>
+                          <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)] sm:text-[11px]">
+                            Max {dayMax}h
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-[var(--color-border)]">
+          {projectSummaries.length === 0 ? (
+            <div className="px-6 py-16 text-center">
+              <p className="text-sm text-[var(--color-text-muted)]">
+                No rows yet. Add a configured row or a custom project to start this week.
+              </p>
+            </div>
+          ) : (
+            projectSummaries.map((summary, summaryIndex) => {
           const {
             projectId,
             projectName,
@@ -1206,52 +1246,107 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
           } = summary;
           const isExpanded = openProjectIds.includes(projectId);
           const visibleRowCount = projectRows.length;
+          const isEmptyProject = total <= 0;
 
           return (
             <section
               key={projectId}
-              className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-panel)]"
-              style={{ borderLeftColor: accentColor, borderLeftWidth: "4px" }}
+              className={cn(
+                "relative",
+                summaryIndex > 0 && "border-t border-[var(--color-border)]",
+                isExpanded && "bg-[var(--color-panel-elevated)]",
+              )}
             >
-              <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] px-3 py-3">
-                <div className="min-w-0 flex-1">
-                  <button
-                    type="button"
-                    className="w-full min-w-0 text-left"
-                    onClick={() => toggleProjectOpen(projectId)}
-                    aria-expanded={isExpanded}
-                  >
+              <span
+                className="absolute inset-y-0 left-0 w-1"
+                style={{ backgroundColor: accentColor }}
+                aria-hidden
+              />
+              <header className={cn(isExpanded && "border-b border-[var(--color-border)]")}>
+                <button
+                  type="button"
+                  className={cn(
+                    "flex w-full min-w-0 items-center justify-between gap-3 px-5 py-4 text-left transition hover:bg-[var(--color-panel-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]",
+                  )}
+                  onClick={() => toggleProjectOpen(projectId)}
+                  aria-expanded={isExpanded}
+                  aria-controls={`project-panel-${projectId}`}
+                >
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span
-                        className="h-2.5 w-2.5 rounded-full"
-                        style={{ backgroundColor: accentColor }}
-                        aria-hidden
-                      />
+                      {!isEmptyProject && (
+                        <span
+                          className="h-2.5 w-2.5 rounded-full"
+                          style={{ backgroundColor: accentColor }}
+                          aria-hidden
+                        />
+                      )}
                       <h3 className="truncate text-base font-semibold">{projectName}</h3>
-                      {isCustom && (
+                      {!isEmptyProject && isCustom && (
                         <span className="rounded-full border border-[var(--color-border-strong)] bg-[var(--color-panel-strong)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-soft)]">
                           Custom
                         </span>
                       )}
-                      <span
-                        className={cn(
-                          "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]",
-                          status === "warning" ? "status-warn" : "status-ok",
-                        )}
-                      >
-                        {status === "warning" ? "Warning" : "OK"}
-                      </span>
-                    </div>
-                    {!isCustom &&
-                      projectEbsName &&
-                      safeTrim(projectEbsName) !== safeTrim(projectName) && (
-                        <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-                          EBS: {projectEbsName}
-                        </p>
+                      {!isEmptyProject && status === "warning" && (
+                        <span className="status-warn rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]">
+                          Warning
+                        </span>
                       )}
-                  </button>
-                  {isCustom && (
-                    <div className="mt-2 max-w-xs">
+                    </div>
+                    {!isEmptyProject && (
+                      <div
+                        className="mt-2 flex flex-wrap items-center gap-1.5"
+                        aria-label={`${projectName} daily totals`}
+                      >
+                        {WEEKDAY_LABELS.map((label, index) => {
+                          const dayTotal = projectTotalsByDay[index] ?? 0;
+                          if (dayTotal <= 0) {
+                            return null;
+                          }
+
+                          return (
+                            <span
+                              key={`${projectId}-${label}-header-total`}
+                              className="inline-flex items-center gap-1 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-panel-strong)] px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.04em] text-[var(--color-text-soft)]"
+                            >
+                              <span>{label}</span>
+                              <span className="font-mono text-[11px] normal-case">{formatHours(dayTotal)}h</span>
+                            </span>
+                          );
+                        })}
+                        <span className="inline-flex items-center gap-1 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-panel-strong)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-soft)]">
+                          <span>Total</span>
+                          <span className="font-mono text-[11px] normal-case">{formatHours(total)}h</span>
+                        </span>
+                        {taskCount > 0 && (
+                          <span className="text-[11px] text-[var(--color-text-muted)]">
+                            {taskCount} task{taskCount === 1 ? "" : "s"}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <span
+                    className={cn(
+                      "inline-flex h-8 shrink-0 items-center justify-center text-[var(--color-text-muted)] transition-transform duration-200",
+                      isExpanded && "rotate-90 text-[var(--color-text)]",
+                    )}
+                    aria-hidden
+                  >
+                    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none">
+                      <path
+                        d="M6 3.5L10 8L6 12.5"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                </button>
+                {isCustom && (
+                  <div className="px-5 pb-4">
+                    <div className="max-w-xs">
                       <Input
                         aria-label="Custom project name"
                         value={projectName}
@@ -1259,91 +1354,73 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                         className="h-9 rounded-lg px-2 text-sm"
                       />
                     </div>
-                  )}
-                  <div
-                    className="mt-2 flex flex-wrap items-center gap-1.5"
-                    aria-label={`${projectName} daily totals`}
-                  >
-                    {WEEKDAY_LABELS.map((label, index) => {
-                      const dayTotal = projectTotalsByDay[index] ?? 0;
-                      return (
-                        <span
-                          key={`${projectId}-${label}-header-total`}
-                          className={cn(
-                            "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.04em]",
-                            dayTotal > 0
-                              ? "border-[var(--color-border-strong)] bg-[var(--color-panel-strong)] text-[var(--color-text-soft)]"
-                              : "border-[var(--color-border)] text-[var(--color-text-muted)]",
-                          )}
-                        >
-                          <span>{label}</span>
-                          <span className="font-mono text-[11px] normal-case">{formatHours(dayTotal)}h</span>
-                        </span>
-                      );
-                    })}
-                    <span className="inline-flex items-center gap-1 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-panel-strong)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-soft)]">
-                      <span>Total</span>
-                      <span className="font-mono text-[11px] normal-case">{formatHours(total)}h</span>
-                    </span>
-                    <span className="text-[11px] text-[var(--color-text-muted)]">
-                      {taskCount} task{taskCount === 1 ? "" : "s"}
-                    </span>
                   </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => addRow({ overrideProjectId: projectId })}>
-                    Add Task
-                  </Button>
-                  {isCustom && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className={cn(
-                        pendingCustomProjectDeleteId === projectId &&
-                          "border border-[var(--color-danger)] bg-[var(--color-danger)] text-[#22050f] hover:bg-[var(--color-danger)] hover:text-[#22050f]",
-                      )}
-                      onClick={() => requestCustomProjectDelete(projectId)}
-                    >
-                      {pendingCustomProjectDeleteId === projectId ? "Confirm Delete" : "Delete Project"}
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => toggleProjectOpen(projectId)}
-                  >
-                    {isExpanded ? "Collapse" : "Expand"}
-                  </Button>
-                </div>
+                )}
               </header>
 
               {isExpanded && (
-                <div className="p-2 sm:p-3">
+                <div id={`project-panel-${projectId}`} className="px-5 pb-5 pt-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-2">
+                      {!isCustom &&
+                        projectEbsName &&
+                        safeTrim(projectEbsName) !== safeTrim(projectName) && (
+                          <p className="text-xs text-[var(--color-text-muted)]">
+                            EBS: {projectEbsName}
+                          </p>
+                        )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="rounded-full bg-[var(--color-panel)] font-mono text-[11px] font-semibold uppercase tracking-[0.08em]"
+                        onClick={() => addRow({ overrideProjectId: projectId })}
+                      >
+                        Add Task
+                      </Button>
+                      {isCustom && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className={cn(
+                            "rounded-full bg-[var(--color-panel)] font-mono text-[11px] font-semibold uppercase tracking-[0.08em]",
+                            pendingCustomProjectDeleteId === projectId &&
+                              "border border-[var(--color-danger)] bg-[var(--color-danger)] text-[#22050f] hover:bg-[var(--color-danger)] hover:text-[#22050f]",
+                          )}
+                          onClick={() => requestCustomProjectDelete(projectId)}
+                        >
+                          {pendingCustomProjectDeleteId === projectId ? "Confirm Delete" : "Delete Project"}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
                   {visibleRowCount === 0 ? (
-                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-panel-strong)] px-3 py-8 text-center text-sm text-[var(--color-text-muted)]">
+                    <div className="mt-4 rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-8 text-center text-sm text-[var(--color-text-muted)]">
                       No rows yet for this project.
                     </div>
                   ) : (
-                    <div className="max-h-[28rem] overflow-y-auto subtle-scroll rounded-xl border border-[var(--color-border)]">
-                      <table className="table-grid w-full table-fixed text-sm">
-                        <colgroup>
-                          <col className={shouldShowHourType ? "w-[24%]" : "w-[32%]"} />
-                          {shouldShowHourType && <col className="w-[17%]" />}
-                          <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
-                          <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
-                          <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
-                          <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
-                          <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
-                          <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
-                          <col className={shouldShowHourType ? "w-[11%]" : "w-[16%]"} />
-                        </colgroup>
-                        <thead>
-                          <tr className="text-left text-[11px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-                            <th className="px-2 py-2 font-medium">Task</th>
-                            {shouldShowHourType && <th className="px-2 py-2 font-medium">Type</th>}
-                            {WEEKDAY_LABELS.map((label, index) => (
-                              <th key={`${projectId}-${label}`} className="px-1 py-2 font-medium">
+                    <div className="mt-4 border-t border-[var(--color-border)] pt-3">
+                      <div className="max-h-[28rem] overflow-y-auto subtle-scroll">
+                        <table className="table-grid w-full table-fixed text-sm">
+                          <colgroup>
+                            <col className={shouldShowHourType ? "w-[24%]" : "w-[32%]"} />
+                            {shouldShowHourType && <col className="w-[17%]" />}
+                            <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
+                            <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
+                            <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
+                            <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
+                            <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
+                            <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
+                            <col className={shouldShowHourType ? "w-[11%]" : "w-[16%]"} />
+                          </colgroup>
+                          <thead>
+                            <tr className="text-left text-[11px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+                              <th className="px-2 py-2 font-medium">Task</th>
+                              {shouldShowHourType && <th className="px-2 py-2 font-medium">Type</th>}
+                              {WEEKDAY_LABELS.map((label, index) => (
+                                <th key={`${projectId}-${label}`} className="px-1 py-2 font-medium">
                                 <button
                                   type="button"
                                   className={cn(
@@ -1555,14 +1632,16 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                         </tfoot>
                       </table>
                     </div>
+                    </div>
                   )}
                 </div>
               )}
             </section>
           );
-        })}
-      </div>
-
+            })
+          )}
+        </div>
+      </Card>
     </section>
   );
 }
