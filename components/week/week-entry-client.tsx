@@ -1284,14 +1284,6 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                         </span>
                       )}
                     </div>
-                    {!isEmptyProject &&
-                      !isCustom &&
-                      projectEbsName &&
-                      safeTrim(projectEbsName) !== safeTrim(projectName) && (
-                        <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-                          EBS: {projectEbsName}
-                        </p>
-                      )}
                     {!isEmptyProject && (
                       <div
                         className="mt-2 flex flex-wrap items-center gap-1.5"
@@ -1359,6 +1351,13 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
 
               {isExpanded && (
                 <div id={`project-panel-${projectId}`} className="bg-[var(--color-panel)] p-3 sm:p-4">
+                  {!isCustom &&
+                    projectEbsName &&
+                    safeTrim(projectEbsName) !== safeTrim(projectName) && (
+                      <p className="mb-3 px-1 text-xs text-[var(--color-text-muted)]">
+                        EBS: {projectEbsName}
+                      </p>
+                    )}
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
                     <p className="text-xs text-[var(--color-text-muted)]">
                       {visibleRowCount} row{visibleRowCount === 1 ? "" : "s"} in this project

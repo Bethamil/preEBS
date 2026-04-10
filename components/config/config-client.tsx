@@ -3,7 +3,6 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { DeleteIconButton } from "@/components/ui/delete-icon-button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
@@ -498,9 +497,23 @@ export function ConfigClient() {
     return <p className="text-sm text-[var(--color-text-muted)]">Loading configuration...</p>;
   }
 
+  const commandButtonClassName =
+    "rounded-full bg-[var(--color-panel-elevated)] font-mono text-[11px] font-semibold uppercase tracking-[0.08em]";
+  const secondaryCommandButtonClassName =
+    "rounded-full bg-[var(--color-panel)] font-mono text-[10px] font-semibold uppercase tracking-[0.08em]";
+
   return (
-    <section className="space-y-4 pb-28">
-      <Card className="p-5 sm:p-6">
+    <section className="relative pb-28">
+      <div className="relative overflow-hidden">
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-px opacity-80"
+          aria-hidden
+          style={{
+            background:
+              "linear-gradient(90deg, transparent 0%, rgba(143,99,222,0.36) 22%, rgba(99,222,132,0.3) 52%, rgba(143,99,222,0.22) 78%, transparent 100%)",
+          }}
+        />
+        <div className="relative p-5 sm:p-6">
         <input
           ref={fileInputRef}
           type="file"
@@ -516,16 +529,25 @@ export function ConfigClient() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" onClick={exportConfig}>
+            <Button variant="secondary" className={commandButtonClassName} onClick={exportConfig}>
               Export Config
             </Button>
-            <Button variant="secondary" onClick={triggerImport} disabled={saving || importing}>
+            <Button
+              variant="secondary"
+              className={commandButtonClassName}
+              onClick={triggerImport}
+              disabled={saving || importing}
+            >
               {importing ? "Importing..." : "Import Config"}
             </Button>
-            <Button variant="secondary" onClick={addProject}>
+            <Button variant="secondary" className={commandButtonClassName} onClick={addProject}>
               Add Project
             </Button>
-            <Button onClick={save} disabled={saving || importing || !hasUnsavedChanges}>
+            <Button
+              className={cn(commandButtonClassName, "rounded-full")}
+              onClick={save}
+              disabled={saving || importing || !hasUnsavedChanges}
+            >
               {saving ? "Saving..." : "Save Config"}
             </Button>
           </div>
@@ -549,7 +571,7 @@ export function ConfigClient() {
         )}
 
         <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_1fr]">
-          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-panel)] p-3">
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-panel-elevated)] p-3">
             <p className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
               Max Hours Per Day
             </p>
@@ -593,9 +615,9 @@ export function ConfigClient() {
             </p>
           </div>
         </div>
-      </Card>
+        </div>
 
-      <Card className="p-5 sm:p-6">
+        <div className="border-t border-[var(--color-border)] px-5 py-5 sm:px-6 sm:py-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold">Projects</h2>
@@ -607,6 +629,7 @@ export function ConfigClient() {
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
+              className="bg-[var(--color-panel-elevated)]"
               placeholder="Search project or task"
             />
           </div>
@@ -615,7 +638,7 @@ export function ConfigClient() {
         {config.projects.length === 0 && (
           <div className="mt-4 rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-panel-strong)] p-8 text-center">
             <p className="text-sm text-[var(--color-text-muted)]">No projects yet. Add one to start configuring.</p>
-            <Button className="mt-3" size="sm" onClick={addProject}>
+            <Button className={cn("mt-3", commandButtonClassName)} size="sm" onClick={addProject}>
               Add First Project
             </Button>
           </div>
@@ -627,7 +650,7 @@ export function ConfigClient() {
           </div>
         )}
 
-        <div className="mt-4 space-y-3">
+        <div className="mt-4 overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-panel)]">
           {filteredProjects.map((project, projectIndex) => {
             const isExpanded = openProjectIds.includes(project.id);
             const accentColor = PROJECT_ACCENT_COLORS[projectIndex % PROJECT_ACCENT_COLORS.length];
@@ -635,45 +658,59 @@ export function ConfigClient() {
             return (
               <section
                 key={project.id}
-                className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-panel)]"
+                className={cn(
+                  "relative",
+                  projectIndex > 0 && "border-t border-[var(--color-border)]",
+                  isExpanded && "bg-[var(--color-panel-elevated)]",
+                )}
                 style={{ borderLeftColor: accentColor, borderLeftWidth: "4px" }}
               >
-                <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] px-3 py-3">
+                <header className={cn(isExpanded && "border-b border-[var(--color-border)]")}>
                   <button
                     type="button"
-                    className="min-w-0 flex-1 text-left"
+                    className="flex w-full min-w-0 items-center justify-between gap-3 px-4 py-4 text-left transition hover:bg-[var(--color-panel-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
                     onClick={() => toggleProject(project.id)}
                     aria-expanded={isExpanded}
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: accentColor }} />
-                      <h3 className="truncate text-base font-semibold">
-                        {project.label?.trim() || project.name || "Untitled Project"}
-                      </h3>
-                    </div>
-                    {project.label?.trim() && (
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: accentColor }} />
+                        <h3 className="truncate text-base font-semibold">
+                          {project.label?.trim() || project.name || "Untitled Project"}
+                        </h3>
+                      </div>
+                      {project.label?.trim() && (
+                        <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+                          EBS name: {project.name || "Untitled Project"}
+                        </p>
+                      )}
                       <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-                        EBS name: {project.name || "Untitled Project"}
+                        {project.tasks.length} task{project.tasks.length === 1 ? "" : "s"} · single hour type mode
                       </p>
-                    )}
-                    <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-                      {project.tasks.length} task{project.tasks.length === 1 ? "" : "s"} · single hour type mode
-                    </p>
+                    </div>
+                    <span
+                      className={cn(
+                        "inline-flex h-8 shrink-0 items-center justify-center text-[var(--color-text-muted)] transition-transform duration-200",
+                        isExpanded && "rotate-90 text-[var(--color-text)]",
+                      )}
+                      aria-hidden
+                    >
+                      <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none">
+                        <path
+                          d="M6 3.5L10 8L6 12.5"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </span>
                   </button>
-
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => addTask(project.id)}>
-                      Add Task
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => toggleProject(project.id)}>
-                      {isExpanded ? "Collapse" : "Expand"}
-                    </Button>
-                  </div>
                 </header>
 
                 {isExpanded && (
-                  <div className="space-y-3 p-3">
-                    <div className="grid gap-2 lg:grid-cols-[1fr_1fr_auto_auto_auto]">
+                  <div className="space-y-3 bg-[var(--color-panel)] p-3">
+                    <div className="grid gap-2 lg:grid-cols-[1fr_1fr_auto_auto_auto_auto]">
                       <Input
                         aria-label="Project label"
                         value={project.label ?? ""}
@@ -689,6 +726,7 @@ export function ConfigClient() {
                       <Button
                         variant="ghost"
                         size="sm"
+                        className={commandButtonClassName}
                         onClick={() => reorderProject(projectIndex, -1)}
                         disabled={projectIndex === 0}
                         title="Move project up"
@@ -698,11 +736,20 @@ export function ConfigClient() {
                       <Button
                         variant="ghost"
                         size="sm"
+                        className={commandButtonClassName}
                         onClick={() => reorderProject(projectIndex, 1)}
                         disabled={projectIndex === config.projects.length - 1}
                         title="Move project down"
                       >
                         Down
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className={commandButtonClassName}
+                        onClick={() => addTask(project.id)}
+                      >
+                        Add Task
                       </Button>
                       <DeleteIconButton
                         label="Delete project"
@@ -733,9 +780,9 @@ export function ConfigClient() {
                         return (
                           <article
                             key={task.id}
-                            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-panel-strong)] p-3"
+                            className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-panel-strong)]"
                           >
-                            <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex items-start gap-2 p-3">
                               <Input
                                 aria-label="Task name"
                                 value={task.name}
@@ -743,12 +790,25 @@ export function ConfigClient() {
                                 className="min-w-[12rem] flex-1"
                                 placeholder="Task name"
                               />
-                              <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-panel)] px-2 py-0.5 text-[11px] text-[var(--color-text-muted)]">
-                                {isDefaultHourType ? "Default type" : "Custom type"}
-                              </span>
+                              <DeleteIconButton
+                                label="Delete task"
+                                size="sm"
+                                confirm
+                                confirmLabel="Confirm delete task"
+                                onClick={() => removeTask(project.id, task.id)}
+                              />
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2 border-t border-[var(--color-border)] px-3 py-2">
+                              {!isDefaultHourType && (
+                                <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-panel)] px-2 py-0.5 text-[11px] text-[var(--color-text-muted)]">
+                                  Custom type
+                                </span>
+                              )}
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                className={secondaryCommandButtonClassName}
                                 onClick={() => reorderTask(project.id, taskIndex, -1)}
                                 disabled={taskIndex === 0}
                                 title="Move task up"
@@ -758,6 +818,7 @@ export function ConfigClient() {
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                className={secondaryCommandButtonClassName}
                                 onClick={() => reorderTask(project.id, taskIndex, 1)}
                                 disabled={taskIndex === project.tasks.length - 1}
                                 title="Move task down"
@@ -767,17 +828,11 @@ export function ConfigClient() {
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                className={secondaryCommandButtonClassName}
                                 onClick={() => toggleHourTypeEditor(task.id)}
                               >
-                                {hourTypeCollapsed ? "Show Type" : "Hide Type"}
+                                {hourTypeCollapsed ? "Type" : "Hide Type"}
                               </Button>
-                              <DeleteIconButton
-                                label="Delete task"
-                                size="sm"
-                                confirm
-                                confirmLabel="Confirm delete task"
-                                onClick={() => removeTask(project.id, task.id)}
-                              />
                             </div>
 
                             <div
@@ -818,7 +873,8 @@ export function ConfigClient() {
             );
           })}
         </div>
-      </Card>
+        </div>
+      </div>
 
       <div className="sticky bottom-3 z-30">
         <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--floating-panel-bg)] p-3 shadow-lg backdrop-blur-md sm:px-4">
@@ -842,7 +898,11 @@ export function ConfigClient() {
                 {hasUnsavedChanges ? "Unsaved changes" : "All changes saved"}
               </span>
             </div>
-            <Button onClick={save} disabled={saving || importing || !hasUnsavedChanges}>
+            <Button
+              className={cn(commandButtonClassName, "rounded-full")}
+              onClick={save}
+              disabled={saving || importing || !hasUnsavedChanges}
+            >
               {saving ? "Saving..." : "Save Config"}
             </Button>
           </div>
