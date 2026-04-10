@@ -1041,100 +1041,90 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
             )}
           </div>
 
-          <div className="relative grid border-t border-[var(--color-border)] lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-            <div className="p-4 sm:p-6 lg:border-r lg:border-[var(--color-border)]">
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-                    Quick Add Search
-                  </span>
-                  <div className="relative">
-                    <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--color-text-muted)]">
-                      <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" aria-hidden>
-                        <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.3" />
-                        <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-                      </svg>
-                    </span>
-                    <Input
-                      ref={quickComboSearchInputRef}
-                      value={quickComboSearch}
-                      disabled={!hasConfigProjects}
-                      className="h-12 rounded-2xl border-[var(--color-border)] bg-[var(--color-panel-elevated)] pl-9 pr-16 text-sm shadow-none"
-                      onChange={(event) => setQuickComboSearch(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key !== "Enter") {
-                          return;
-                        }
-                        event.preventDefault();
-                        const firstMatch = quickComboMatches[0];
-                        if (!firstMatch) {
-                          pushToast("No matching combo found.", "info");
-                          return;
-                        }
-                        quickAddFromCombo(firstMatch);
-                      }}
-                      placeholder={
-                        !hasConfigProjects
-                          ? "Configure projects to use quick add"
-                          : shouldShowHourType
-                            ? "Search project, task, or hour type..."
-                            : "Search project or task..."
-                      }
-                    />
-                    <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                      <kbd className="inline-flex h-7 items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] px-2 text-[11px] font-medium text-[var(--color-text-muted)]">
-                        ⌘K
-                      </kbd>
-                    </span>
-                  </div>
-                </div>
+          <div className="relative grid border-t border-[var(--color-border)] lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+            <div className="space-y-3 p-4 sm:p-6 lg:border-r lg:border-[var(--color-border)]">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+                  Quick Add Search
+                </span>
+                <span className="text-xs text-[var(--color-text-muted)]">Fast project jump</span>
+              </div>
 
-                <div className="flex min-h-8 flex-wrap items-center gap-2">
-                  {hasConfigProjects && quickComboMatches.slice(0, 6).map((combo) => (
-                    <button
-                      key={comboKey(combo.projectId, combo.taskId, combo.hourTypeId)}
-                      type="button"
-                      className="inline-flex max-w-full items-center gap-1 rounded-full border border-[var(--color-border)] bg-[var(--color-panel-elevated)] px-2.5 py-1 text-xs text-[var(--color-text-soft)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
-                      onClick={() => quickAddFromCombo(combo)}
-                      title={combo.label}
-                    >
-                      {combo.isRecent && (
-                        <span className="rounded-full bg-[var(--color-panel-elevated)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-                          Recent
-                        </span>
-                      )}
-                      {combo.isNew && (
-                        <span className="rounded-full bg-[var(--color-panel-elevated)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--color-accent)]">
-                          New
-                        </span>
-                      )}
-                      <span className="truncate">{combo.label}</span>
-                    </button>
-                  ))}
-                  {!hasConfigProjects && (
-                    <p className="text-xs text-[var(--color-text-muted)]">
-                      Quick add shows configured combos. Add projects in Config first.
-                    </p>
-                  )}
-                  {hasConfigProjects && quickComboMatches.length === 0 && (
-                    <p className="text-xs text-[var(--color-text-muted)]">No combo matches this search.</p>
-                  )}
-                </div>
+              <div className="relative">
+                <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--color-text-muted)]">
+                  <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" aria-hidden>
+                    <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.3" />
+                    <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                  </svg>
+                </span>
+                <Input
+                  ref={quickComboSearchInputRef}
+                  value={quickComboSearch}
+                  disabled={!hasConfigProjects}
+                  className="h-12 rounded-2xl border-[var(--color-border)] bg-[var(--color-panel-elevated)] pl-9 pr-16 text-sm shadow-none"
+                  onChange={(event) => setQuickComboSearch(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter") {
+                      return;
+                    }
+                    event.preventDefault();
+                    const firstMatch = quickComboMatches[0];
+                    if (!firstMatch) {
+                      pushToast("No matching combo found.", "info");
+                      return;
+                    }
+                    quickAddFromCombo(firstMatch);
+                  }}
+                  placeholder={
+                    !hasConfigProjects
+                      ? "Configure projects to use quick add"
+                      : shouldShowHourType
+                        ? "Search project, task, or hour type..."
+                        : "Search project or task..."
+                  }
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
+                  <kbd className="inline-flex h-7 items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] px-2 text-[11px] font-medium text-[var(--color-text-muted)]">
+                    ⌘K
+                  </kbd>
+                </span>
+              </div>
+
+              <div className="flex min-h-8 flex-wrap items-center gap-2">
+                {hasConfigProjects && quickComboMatches.slice(0, 6).map((combo) => (
+                  <button
+                    key={comboKey(combo.projectId, combo.taskId, combo.hourTypeId)}
+                    type="button"
+                    className="inline-flex max-w-full items-center gap-1 rounded-full border border-[var(--color-border)] bg-[var(--color-panel-elevated)] px-2.5 py-1 text-xs text-[var(--color-text-soft)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+                    onClick={() => quickAddFromCombo(combo)}
+                    title={combo.label}
+                  >
+                    {combo.isRecent && (
+                      <span className="rounded-full bg-[var(--color-panel-elevated)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+                        Recent
+                      </span>
+                    )}
+                    {combo.isNew && (
+                      <span className="rounded-full bg-[var(--color-panel-elevated)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--color-accent)]">
+                        New
+                      </span>
+                    )}
+                    <span className="truncate">{combo.label}</span>
+                  </button>
+                ))}
+                {!hasConfigProjects && (
+                  <p className="text-xs text-[var(--color-text-muted)]">
+                    Quick add shows configured combos. Add projects in Config first.
+                  </p>
+                )}
+                {hasConfigProjects && quickComboMatches.length === 0 && (
+                  <p className="text-xs text-[var(--color-text-muted)]">No combo matches this search.</p>
+                )}
               </div>
             </div>
 
-            <div className="p-4 sm:p-6">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-                  Week Flow
-                </span>
-                <span className="text-xs text-[var(--color-text-muted)]">
-                  Focus {WEEKDAY_LABELS[focusedDayIndex ?? 0]}
-                </span>
-              </div>
-
-              <div className="mt-3 overflow-hidden rounded-[1.4rem] border border-[var(--color-border)] bg-[var(--color-panel-strong)]">
-                <div className="grid gap-px bg-[var(--color-border)] sm:grid-cols-5">
+            <div className="flex overflow-hidden lg:rounded-br-2xl">
+              <div className="grid min-h-full w-full gap-px bg-[var(--color-border)] sm:grid-cols-5">
                   {WEEKDAY_LABELS.map((label, index) => {
                     const dayTotal = formatHours(totalsByDay[index]);
                     const dayMax = formatHours(maxHoursPerDay[index]);
@@ -1143,12 +1133,14 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                       <div
                         key={label}
                         className={cn(
-                          "flex min-h-28 cursor-pointer flex-col justify-between bg-[var(--color-panel-elevated)] px-3 py-3 transition",
+                          "group flex h-full min-h-30 cursor-pointer flex-col justify-between bg-[var(--color-panel-elevated)] px-3 py-3 transition sm:min-h-32",
                           !exceededDayIndexSet.has(index) &&
                             !exactDayIndexSet.has(index) &&
                             "hover:bg-[var(--color-panel)]",
-                          exceededDayIndexSet.has(index) && "status-danger border-0",
-                          exactDayIndexSet.has(index) && "status-ok border-0",
+                          exceededDayIndexSet.has(index) &&
+                            "bg-[var(--color-status-danger-bg)] text-[var(--color-status-danger-text)]",
+                          exactDayIndexSet.has(index) &&
+                            "bg-[var(--color-status-ok-bg)] text-[var(--color-status-ok-text)]",
                           focusedDayIndex === index && "ring-2 ring-inset ring-[var(--color-ring)]",
                         )}
                         role="button"
@@ -1165,14 +1157,16 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="text-left">
-                            <p className="text-lg font-semibold uppercase tracking-[0.04em] leading-none">{label}</p>
+                            <p className="text-base font-semibold uppercase tracking-[0.04em] leading-none sm:text-lg">
+                              {label}
+                            </p>
                             <p className="mt-1 text-[11px] text-[var(--color-text-muted)]">
                               {formatDateLabel(weekDates[index])}
                             </p>
                           </div>
                           <button
                             type="button"
-                            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] text-[var(--color-text-muted)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]"
+                            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] text-[var(--color-text-muted)] opacity-0 transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)] group-hover:opacity-100 group-focus-within:opacity-100"
                             onClick={(event) => {
                               event.stopPropagation();
                               clearDay(index);
@@ -1193,15 +1187,14 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                           </button>
                         </div>
                         <div className="mt-4 flex items-end justify-between gap-2">
-                          <p className="text-2xl font-semibold leading-none">{dayTotal}h</p>
-                          <p className="rounded-full border border-[var(--color-border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+                          <p className="text-[2rem] font-semibold leading-none sm:text-3xl">{dayTotal}h</p>
+                          <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)] sm:text-[11px]">
                             Max {dayMax}h
                           </p>
                         </div>
                       </div>
                     );
                   })}
-                </div>
               </div>
             </div>
           </div>
