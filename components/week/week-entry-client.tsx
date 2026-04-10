@@ -1234,14 +1234,11 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                           Custom
                         </span>
                       )}
-                      <span
-                        className={cn(
-                          "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]",
-                          status === "warning" ? "status-warn" : "status-ok",
-                        )}
-                      >
-                        {status === "warning" ? "Warning" : "OK"}
-                      </span>
+                      {status === "warning" && (
+                        <span className="status-warn rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]">
+                          Warning
+                        </span>
+                      )}
                     </div>
                     {!isCustom &&
                       projectEbsName &&
