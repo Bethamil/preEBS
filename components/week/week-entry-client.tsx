@@ -955,9 +955,11 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   }
 
   const hasConfigProjects = configProjects.length > 0;
+  const commandButtonClassName =
+    "rounded-full bg-[var(--color-panel-elevated)] font-mono text-[11px] font-semibold uppercase tracking-[0.08em]";
 
   return (
-    <section className="space-y-5 pb-28">
+    <section className="pb-28">
       <Card className="overflow-hidden p-0">
         <div className="relative">
           <div
@@ -1008,10 +1010,20 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <Button variant="secondary" size="sm" onClick={addCustomProjectRow}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className={commandButtonClassName}
+                  onClick={addCustomProjectRow}
+                >
                   Add Custom Project
                 </Button>
-                <Button variant="secondary" size="sm" onClick={copyPrevious}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className={commandButtonClassName}
+                  onClick={copyPrevious}
+                >
                   Copy Previous
                 </Button>
                 <JsonExportMenu
@@ -1023,6 +1035,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                   downloadSuccessMessage="JSON downloaded."
                   variant="ghost"
                   size="sm"
+                  buttonClassName={commandButtonClassName}
                 />
               </div>
             </div>
@@ -1199,19 +1212,16 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
             </div>
           </div>
         </div>
-      </Card>
 
-      {projectSummaries.length === 0 && (
-        <Card className="p-6 text-center">
-          <p className="text-sm text-[var(--color-text-muted)]">
-            No rows yet. Add a configured row or a custom project to start this week.
-          </p>
-        </Card>
-      )}
-
-      {projectSummaries.length > 0 && (
-        <Card className="overflow-hidden p-0">
-          {projectSummaries.map((summary, summaryIndex) => {
+        <div className="border-t border-[var(--color-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.18),rgba(255,255,255,0.04))]">
+          {projectSummaries.length === 0 ? (
+            <div className="px-6 py-16 text-center">
+              <p className="text-sm text-[var(--color-text-muted)]">
+                No rows yet. Add a configured row or a custom project to start this week.
+              </p>
+            </div>
+          ) : (
+            projectSummaries.map((summary, summaryIndex) => {
           const {
             projectId,
             projectName,
@@ -1612,9 +1622,10 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
               )}
             </section>
           );
-          })}
-        </Card>
-      )}
+            })
+          )}
+        </div>
+      </Card>
     </section>
   );
 }

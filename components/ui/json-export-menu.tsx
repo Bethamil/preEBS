@@ -24,6 +24,7 @@ interface JsonExportMenuProps {
   size?: ButtonSize;
   align?: Align;
   disabled?: boolean;
+  buttonClassName?: string;
 }
 
 function parseFilename(response: Response, fallbackFilename: string): string {
@@ -89,6 +90,7 @@ export function JsonExportMenu({
   size = "sm",
   align = "right",
   disabled = false,
+  buttonClassName,
 }: JsonExportMenuProps) {
   const { pushToast } = useToast();
   const [open, setOpen] = useState(false);
@@ -157,6 +159,7 @@ export function JsonExportMenu({
       <Button
         variant={variant}
         size={size}
+        className={buttonClassName}
         disabled={disabled || busy}
         aria-haspopup="menu"
         aria-expanded={open}
