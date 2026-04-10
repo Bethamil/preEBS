@@ -1136,7 +1136,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
               </div>
             </div>
 
-            <div className="flex overflow-hidden lg:rounded-br-2xl">
+            <div className="flex overflow-hidden">
               <div className="grid min-h-full w-full gap-px bg-[var(--color-border)] sm:grid-cols-5">
                   {WEEKDAY_LABELS.map((label, index) => {
                     const dayTotal = formatHours(totalsByDay[index]);
@@ -1213,7 +1213,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
           </div>
         </div>
 
-        <div className="border-t border-[var(--color-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.18),rgba(255,255,255,0.04))]">
+        <div className="border-t border-[var(--color-border)]">
           {projectSummaries.length === 0 ? (
             <div className="px-6 py-16 text-center">
               <p className="text-sm text-[var(--color-text-muted)]">
