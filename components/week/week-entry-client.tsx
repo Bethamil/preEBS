@@ -1214,10 +1214,13 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
               className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-panel)]"
               style={{ borderLeftColor: accentColor, borderLeftWidth: "4px" }}
             >
-              <header className="border-b border-[var(--color-border)] px-3 py-3">
+              <header className={cn(isExpanded && "border-b border-[var(--color-border)]")}>
                 <button
                   type="button"
-                  className="flex w-full min-w-0 items-center justify-between gap-3 rounded-xl px-1 py-1 text-left transition hover:bg-[var(--color-panel-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+                  className={cn(
+                    "flex w-full min-w-0 items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-[var(--color-panel-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]",
+                    isExpanded ? "rounded-t-[calc(1rem-1px)]" : "rounded-[calc(1rem-1px)]",
+                  )}
                   onClick={() => toggleProjectOpen(projectId)}
                   aria-expanded={isExpanded}
                   aria-controls={`project-panel-${projectId}`}
@@ -1303,7 +1306,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                   </span>
                 </button>
                 {isCustom && (
-                  <div className="mt-2 px-1">
+                  <div className="px-4 pb-3">
                     <div className="max-w-xs">
                       <Input
                         aria-label="Custom project name"
