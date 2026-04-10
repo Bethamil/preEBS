@@ -957,240 +957,268 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
   const hasConfigProjects = configProjects.length > 0;
 
   return (
-    <section className="space-y-4 pb-28">
-      <Card className="p-4 sm:p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)]">
-              Week Entry
-            </p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
-              {formatWeekRange(
-                weekStartDate as WeekDocument["weekStartDate"],
-                (weekDates[4] ?? weekStartDate) as WeekDocument["weekStartDate"],
-              )}
-            </h1>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-[var(--color-text-muted)]">
-              {isoWeek && (
-                <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-panel-strong)] px-2 py-0.5 text-xs font-semibold text-[var(--color-text-soft)]">
-                  Week {isoWeek.weekNumber}
-                </span>
-              )}
-              <span>
-                {rows.length} row{rows.length === 1 ? "" : "s"} total
-              </span>
-              <span
-                className={cn(
-                  "rounded-full border px-2.5 py-0.5 text-xs font-semibold",
-                  weekHoursStatus === "match" && "status-ok",
-                  weekHoursStatus === "under" && "status-warn",
-                  weekHoursStatus === "over" && "status-danger",
-                )}
-              >
-                {weekHoursStatus === "match" &&
-                  `Matches required (${formatHours(weekTotalHours)}/${formatHours(requiredWeekHours)}h)`}
-                {weekHoursStatus === "under" &&
-                  `Missing ${formatHours(Math.abs(weekHoursDelta))}h (${formatHours(weekTotalHours)}/${formatHours(requiredWeekHours)}h)`}
-                {weekHoursStatus === "over" &&
-                  `Over by ${formatHours(weekHoursDelta)}h (${formatHours(weekTotalHours)}/${formatHours(requiredWeekHours)}h)`}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={addCustomProjectRow}>
-              Add Custom Project
-            </Button>
-            <Button variant="secondary" size="sm" onClick={copyPrevious}>
-              Copy Previous
-            </Button>
-            <JsonExportMenu
-              exportUrl={`/api/weeks/${weekStartDate}/export`}
-              fallbackFilename={`preebs-${weekStartDate}.json`}
-              buttonLabel="Export JSON"
-              fetchErrorMessage="Save this week before exporting."
-              copySuccessMessage="JSON copied."
-              downloadSuccessMessage="JSON downloaded."
-              variant="ghost"
-              size="sm"
-            />
-          </div>
-        </div>
-
-        {exceedsMax && (
-          <div className="status-danger mt-3 rounded-xl border px-3 py-2 text-sm">
-            Daily max exceeded for{" "}
-            {exceededDayIndexes
-              .map(
-                (dayIndex) =>
-                  `${WEEKDAY_LABELS[dayIndex]} (${formatHours(totalsByDay[dayIndex])}h > ${formatHours(maxHoursPerDay[dayIndex])}h)`,
-              )
-              .join(", ")}
-            .
-          </div>
-        )}
-
-      </Card>
-
-      <Card className="p-4 sm:p-5">
-        <div className="space-y-3">
-          <div className="space-y-1">
-            <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-              Quick Add Search
-            </span>
-            <div className="relative">
-              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--color-text-muted)]">
-                <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" aria-hidden>
-                  <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.3" />
-                  <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-                </svg>
-              </span>
-              <Input
-                ref={quickComboSearchInputRef}
-                value={quickComboSearch}
-                disabled={!hasConfigProjects}
-                className="h-11 rounded-xl border-[var(--color-border)] bg-[var(--color-panel-strong)] pl-9 pr-16 text-sm shadow-none"
-                onChange={(event) => setQuickComboSearch(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter") {
-                    return;
-                  }
-                  event.preventDefault();
-                  const firstMatch = quickComboMatches[0];
-                  if (!firstMatch) {
-                    pushToast("No matching combo found.", "info");
-                    return;
-                  }
-                  quickAddFromCombo(firstMatch);
-                }}
-                placeholder={
-                  !hasConfigProjects
-                    ? "Configure projects to use quick add"
-                    : shouldShowHourType
-                    ? "Search project, task, or hour type..."
-                    : "Search project or task..."
-                }
-              />
-              <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                <kbd className="inline-flex h-6 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-panel)] px-2 text-[11px] font-medium text-[var(--color-text-muted)]">
-                  ⌘K
-                </kbd>
-              </span>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {hasConfigProjects && quickComboMatches.slice(0, 6).map((combo) => (
-              <button
-                key={comboKey(combo.projectId, combo.taskId, combo.hourTypeId)}
-                type="button"
-                className="inline-flex max-w-full items-center gap-1 rounded-full border border-[var(--color-border)] bg-[var(--color-panel-strong)] px-2.5 py-1 text-xs text-[var(--color-text-soft)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
-                onClick={() => quickAddFromCombo(combo)}
-                title={combo.label}
-              >
-                {combo.isRecent && (
-                  <span className="rounded-full bg-[var(--color-panel-strong)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-                    Recent
+    <section className="space-y-5 pb-28">
+      <Card className="overflow-hidden p-0">
+        <div className="relative">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-70"
+            aria-hidden
+            style={{
+              background:
+                "radial-gradient(circle at top right, rgba(99,222,132,0.1), transparent 28%), radial-gradient(circle at bottom left, rgba(143,99,222,0.08), transparent 30%)",
+            }}
+          />
+          <div className="relative p-4 sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="max-w-3xl">
+                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--color-text-muted)]">
+                  Week Entry
+                </p>
+                <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-4xl">
+                  {formatWeekRange(
+                    weekStartDate as WeekDocument["weekStartDate"],
+                    (weekDates[4] ?? weekStartDate) as WeekDocument["weekStartDate"],
+                  )}
+                </h1>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-[var(--color-text-muted)]">
+                  {isoWeek && (
+                    <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-panel-elevated)] px-2.5 py-1 text-xs font-semibold text-[var(--color-text-soft)]">
+                      Week {isoWeek.weekNumber}
+                    </span>
+                  )}
+                  <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-panel-elevated)] px-2.5 py-1 text-xs font-medium text-[var(--color-text-soft)]">
+                    {rows.length} row{rows.length === 1 ? "" : "s"} total
                   </span>
-                )}
-                {combo.isNew && (
-                  <span className="rounded-full bg-[var(--color-panel-strong)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--color-accent)]">
-                    New
-                  </span>
-                )}
-                <span className="truncate">{combo.label}</span>
-              </button>
-            ))}
-            {!hasConfigProjects && (
-              <p className="text-xs text-[var(--color-text-muted)]">
-                Quick add shows configured combos. Add projects in Config first.
-              </p>
-            )}
-            {hasConfigProjects && quickComboMatches.length === 0 && (
-              <p className="text-xs text-[var(--color-text-muted)]">No combo matches this search.</p>
-            )}
-          </div>
-        </div>
-      </Card>
-
-      <Card className="p-4 sm:p-5">
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-          {WEEKDAY_LABELS.map((label, index) => {
-            const dayTotal = formatHours(totalsByDay[index]);
-            const dayMax = formatHours(maxHoursPerDay[index]);
-
-            return (
-              <div
-                key={label}
-                className={cn(
-                  "flex min-h-28 cursor-pointer flex-col rounded-xl border px-3 py-2.5 transition hover:border-[var(--color-ring)]",
-                  exceededDayIndexSet.has(index)
-                    ? "status-danger"
-                    : exactDayIndexSet.has(index)
-                      ? "status-ok"
-                      : "border-[var(--color-border)] bg-[var(--color-panel-strong)]",
-                  focusedDayIndex === index && "ring-2 ring-[var(--color-ring)]",
-                )}
-                role="button"
-                tabIndex={0}
-                onClick={() => setFocusedDayIndex(index)}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter" && event.key !== " ") {
-                    return;
-                  }
-                  event.preventDefault();
-                  setFocusedDayIndex(index);
-                }}
-                aria-label={`Focus ${label}`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="text-left">
-                    <p className="text-xl font-bold uppercase tracking-[0.04em] leading-none">{label}</p>
-                    <p className="mt-1 text-[11px] text-[var(--color-text-muted)]">{formatDateLabel(weekDates[index])}</p>
-                  </div>
-                  <button
-                    type="button"
-                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] text-[var(--color-text-muted)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      clearDay(index);
-                    }}
-                    aria-label={`Clear ${label}`}
-                    title={`Clear ${label}`}
+                  <span
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 text-xs font-semibold",
+                      weekHoursStatus === "match" && "status-ok",
+                      weekHoursStatus === "under" && "status-warn",
+                      weekHoursStatus === "over" && "status-danger",
+                    )}
                   >
-                    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" aria-hidden>
-                      <path
-                        d="M3 4h10M6.1 2.8h3.8M5.3 4v8.2c0 .5.4.9.9.9h3.6c.5 0 .9-.4.9-.9V4"
-                        stroke="currentColor"
-                        strokeWidth="1.3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      <path d="M7 6.4v4.2M9 6.4v4.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-                    </svg>
-                  </button>
-                </div>
-                <div className="mt-auto flex items-end justify-between gap-2">
-                  <p className="text-lg font-semibold leading-none">{dayTotal}h</p>
-                  <p className="rounded-full border border-[var(--color-border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-                    Max {dayMax}h
-                  </p>
+                    {weekHoursStatus === "match" &&
+                      `Matches required (${formatHours(weekTotalHours)}/${formatHours(requiredWeekHours)}h)`}
+                    {weekHoursStatus === "under" &&
+                      `Missing ${formatHours(Math.abs(weekHoursDelta))}h (${formatHours(weekTotalHours)}/${formatHours(requiredWeekHours)}h)`}
+                    {weekHoursStatus === "over" &&
+                      `Over by ${formatHours(weekHoursDelta)}h (${formatHours(requiredWeekHours)}h target)`}
+                  </span>
                 </div>
               </div>
-            );
-          })}
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="secondary" size="sm" onClick={addCustomProjectRow}>
+                  Add Custom Project
+                </Button>
+                <Button variant="secondary" size="sm" onClick={copyPrevious}>
+                  Copy Previous
+                </Button>
+                <JsonExportMenu
+                  exportUrl={`/api/weeks/${weekStartDate}/export`}
+                  fallbackFilename={`preebs-${weekStartDate}.json`}
+                  buttonLabel="Export JSON"
+                  fetchErrorMessage="Save this week before exporting."
+                  copySuccessMessage="JSON copied."
+                  downloadSuccessMessage="JSON downloaded."
+                  variant="ghost"
+                  size="sm"
+                />
+              </div>
+            </div>
+
+            {exceedsMax && (
+              <div className="status-danger mt-4 rounded-2xl border px-3 py-2 text-sm">
+                Daily max exceeded for{" "}
+                {exceededDayIndexes
+                  .map(
+                    (dayIndex) =>
+                      `${WEEKDAY_LABELS[dayIndex]} (${formatHours(totalsByDay[dayIndex])}h > ${formatHours(maxHoursPerDay[dayIndex])}h)`,
+                  )
+                  .join(", ")}
+                .
+              </div>
+            )}
+          </div>
+
+          <div className="relative grid border-t border-[var(--color-border)] lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+            <div className="p-4 sm:p-6 lg:border-r lg:border-[var(--color-border)]">
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+                    Quick Add Search
+                  </span>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--color-text-muted)]">
+                      <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" aria-hidden>
+                        <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.3" />
+                        <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                      </svg>
+                    </span>
+                    <Input
+                      ref={quickComboSearchInputRef}
+                      value={quickComboSearch}
+                      disabled={!hasConfigProjects}
+                      className="h-12 rounded-2xl border-[var(--color-border)] bg-[var(--color-panel-elevated)] pl-9 pr-16 text-sm shadow-none"
+                      onChange={(event) => setQuickComboSearch(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") {
+                          return;
+                        }
+                        event.preventDefault();
+                        const firstMatch = quickComboMatches[0];
+                        if (!firstMatch) {
+                          pushToast("No matching combo found.", "info");
+                          return;
+                        }
+                        quickAddFromCombo(firstMatch);
+                      }}
+                      placeholder={
+                        !hasConfigProjects
+                          ? "Configure projects to use quick add"
+                          : shouldShowHourType
+                            ? "Search project, task, or hour type..."
+                            : "Search project or task..."
+                      }
+                    />
+                    <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
+                      <kbd className="inline-flex h-7 items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] px-2 text-[11px] font-medium text-[var(--color-text-muted)]">
+                        ⌘K
+                      </kbd>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex min-h-8 flex-wrap items-center gap-2">
+                  {hasConfigProjects && quickComboMatches.slice(0, 6).map((combo) => (
+                    <button
+                      key={comboKey(combo.projectId, combo.taskId, combo.hourTypeId)}
+                      type="button"
+                      className="inline-flex max-w-full items-center gap-1 rounded-full border border-[var(--color-border)] bg-[var(--color-panel-elevated)] px-2.5 py-1 text-xs text-[var(--color-text-soft)] transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+                      onClick={() => quickAddFromCombo(combo)}
+                      title={combo.label}
+                    >
+                      {combo.isRecent && (
+                        <span className="rounded-full bg-[var(--color-panel-elevated)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+                          Recent
+                        </span>
+                      )}
+                      {combo.isNew && (
+                        <span className="rounded-full bg-[var(--color-panel-elevated)] px-1.5 py-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--color-accent)]">
+                          New
+                        </span>
+                      )}
+                      <span className="truncate">{combo.label}</span>
+                    </button>
+                  ))}
+                  {!hasConfigProjects && (
+                    <p className="text-xs text-[var(--color-text-muted)]">
+                      Quick add shows configured combos. Add projects in Config first.
+                    </p>
+                  )}
+                  {hasConfigProjects && quickComboMatches.length === 0 && (
+                    <p className="text-xs text-[var(--color-text-muted)]">No combo matches this search.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 sm:p-6">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+                  Week Flow
+                </span>
+                <span className="text-xs text-[var(--color-text-muted)]">
+                  Focus {WEEKDAY_LABELS[focusedDayIndex ?? 0]}
+                </span>
+              </div>
+
+              <div className="mt-3 overflow-hidden rounded-[1.4rem] border border-[var(--color-border)] bg-[var(--color-panel-strong)]">
+                <div className="grid gap-px bg-[var(--color-border)] sm:grid-cols-5">
+                  {WEEKDAY_LABELS.map((label, index) => {
+                    const dayTotal = formatHours(totalsByDay[index]);
+                    const dayMax = formatHours(maxHoursPerDay[index]);
+
+                    return (
+                      <div
+                        key={label}
+                        className={cn(
+                          "flex min-h-28 cursor-pointer flex-col justify-between bg-[var(--color-panel-elevated)] px-3 py-3 transition",
+                          !exceededDayIndexSet.has(index) &&
+                            !exactDayIndexSet.has(index) &&
+                            "hover:bg-[var(--color-panel)]",
+                          exceededDayIndexSet.has(index) && "status-danger border-0",
+                          exactDayIndexSet.has(index) && "status-ok border-0",
+                          focusedDayIndex === index && "ring-2 ring-inset ring-[var(--color-ring)]",
+                        )}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setFocusedDayIndex(index)}
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter" && event.key !== " ") {
+                            return;
+                          }
+                          event.preventDefault();
+                          setFocusedDayIndex(index);
+                        }}
+                        aria-label={`Focus ${label}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="text-left">
+                            <p className="text-lg font-semibold uppercase tracking-[0.04em] leading-none">{label}</p>
+                            <p className="mt-1 text-[11px] text-[var(--color-text-muted)]">
+                              {formatDateLabel(weekDates[index])}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] text-[var(--color-text-muted)] transition hover:bg-[var(--color-panel)] hover:text-[var(--color-text)]"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              clearDay(index);
+                            }}
+                            aria-label={`Clear ${label}`}
+                            title={`Clear ${label}`}
+                          >
+                            <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" aria-hidden>
+                              <path
+                                d="M3 4h10M6.1 2.8h3.8M5.3 4v8.2c0 .5.4.9.9.9h3.6c.5 0 .9-.4.9-.9V4"
+                                stroke="currentColor"
+                                strokeWidth="1.3"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <path d="M7 6.4v4.2M9 6.4v4.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                            </svg>
+                          </button>
+                        </div>
+                        <div className="mt-4 flex items-end justify-between gap-2">
+                          <p className="text-2xl font-semibold leading-none">{dayTotal}h</p>
+                          <p className="rounded-full border border-[var(--color-border)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+                            Max {dayMax}h
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </Card>
 
-      <div className="space-y-3">
-        {projectSummaries.length === 0 && (
-          <Card className="p-6 text-center">
-            <p className="text-sm text-[var(--color-text-muted)]">
-              No rows yet. Add a configured row or a custom project to start this week.
-            </p>
-          </Card>
-        )}
-        {projectSummaries.map((summary) => {
+      {projectSummaries.length === 0 && (
+        <Card className="p-6 text-center">
+          <p className="text-sm text-[var(--color-text-muted)]">
+            No rows yet. Add a configured row or a custom project to start this week.
+          </p>
+        </Card>
+      )}
+
+      {projectSummaries.length > 0 && (
+        <Card className="overflow-hidden p-0">
+          {projectSummaries.map((summary, summaryIndex) => {
           const {
             projectId,
             projectName,
@@ -1211,15 +1239,22 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
           return (
             <section
               key={projectId}
-              className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-panel)]"
-              style={{ borderLeftColor: accentColor, borderLeftWidth: "4px" }}
+              className={cn(
+                "relative",
+                summaryIndex > 0 && "border-t border-[var(--color-border)]",
+                isExpanded && "bg-[var(--color-panel-elevated)]",
+              )}
             >
+              <span
+                className="absolute inset-y-0 left-0 w-1"
+                style={{ backgroundColor: accentColor }}
+                aria-hidden
+              />
               <header className={cn(isExpanded && "border-b border-[var(--color-border)]")}>
                 <button
                   type="button"
                   className={cn(
-                    "flex w-full min-w-0 items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-[var(--color-panel-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]",
-                    isExpanded ? "rounded-t-[calc(1rem-1px)]" : "rounded-[calc(1rem-1px)]",
+                    "flex w-full min-w-0 items-center justify-between gap-3 px-5 py-4 text-left transition hover:bg-[var(--color-panel-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]",
                   )}
                   onClick={() => toggleProjectOpen(projectId)}
                   aria-expanded={isExpanded}
@@ -1306,7 +1341,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                   </span>
                 </button>
                 {isCustom && (
-                  <div className="px-4 pb-3">
+                  <div className="px-5 pb-4">
                     <div className="max-w-xs">
                       <Input
                         aria-label="Custom project name"
@@ -1320,7 +1355,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
               </header>
 
               {isExpanded && (
-                <div id={`project-panel-${projectId}`} className="p-2 sm:p-3">
+                <div id={`project-panel-${projectId}`} className="bg-[var(--color-panel)] p-3 sm:p-4">
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
                     <p className="text-xs text-[var(--color-text-muted)]">
                       {visibleRowCount} row{visibleRowCount === 1 ? "" : "s"} in this project
@@ -1584,9 +1619,9 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
               )}
             </section>
           );
-        })}
-      </div>
-
+          })}
+        </Card>
+      )}
     </section>
   );
 }
