@@ -1213,14 +1213,15 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
               className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-panel)]"
               style={{ borderLeftColor: accentColor, borderLeftWidth: "4px" }}
             >
-              <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] px-3 py-3">
-                <div className="min-w-0 flex-1">
-                  <button
-                    type="button"
-                    className="w-full min-w-0 text-left"
-                    onClick={() => toggleProjectOpen(projectId)}
-                    aria-expanded={isExpanded}
-                  >
+              <header className="border-b border-[var(--color-border)] px-3 py-3">
+                <button
+                  type="button"
+                  className="flex w-full min-w-0 items-start justify-between gap-3 rounded-xl px-1 py-1 text-left transition hover:bg-[var(--color-panel-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+                  onClick={() => toggleProjectOpen(projectId)}
+                  aria-expanded={isExpanded}
+                  aria-controls={`project-panel-${projectId}`}
+                >
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span
                         className="h-2.5 w-2.5 rounded-full"
@@ -1249,9 +1250,57 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                           EBS: {projectEbsName}
                         </p>
                       )}
-                  </button>
-                  {isCustom && (
-                    <div className="mt-2 max-w-xs">
+                    <div
+                      className="mt-2 flex flex-wrap items-center gap-1.5"
+                      aria-label={`${projectName} daily totals`}
+                    >
+                      {WEEKDAY_LABELS.map((label, index) => {
+                        const dayTotal = projectTotalsByDay[index] ?? 0;
+                        return (
+                          <span
+                            key={`${projectId}-${label}-header-total`}
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.04em]",
+                              dayTotal > 0
+                                ? "border-[var(--color-border-strong)] bg-[var(--color-panel-strong)] text-[var(--color-text-soft)]"
+                                : "border-[var(--color-border)] text-[var(--color-text-muted)]",
+                            )}
+                          >
+                            <span>{label}</span>
+                            <span className="font-mono text-[11px] normal-case">{formatHours(dayTotal)}h</span>
+                          </span>
+                        );
+                      })}
+                      <span className="inline-flex items-center gap-1 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-panel-strong)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-soft)]">
+                        <span>Total</span>
+                        <span className="font-mono text-[11px] normal-case">{formatHours(total)}h</span>
+                      </span>
+                      <span className="text-[11px] text-[var(--color-text-muted)]">
+                        {taskCount} task{taskCount === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                  </div>
+                  <span
+                    className={cn(
+                      "mt-0.5 inline-flex h-8 shrink-0 items-center justify-center text-[var(--color-text-muted)] transition-transform duration-200",
+                      isExpanded && "rotate-90 text-[var(--color-text)]",
+                    )}
+                    aria-hidden
+                  >
+                    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none">
+                      <path
+                        d="M6 3.5L10 8L6 12.5"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                </button>
+                {isCustom && (
+                  <div className="mt-2 px-1">
+                    <div className="max-w-xs">
                       <Input
                         aria-label="Custom project name"
                         value={projectName}
@@ -1259,67 +1308,35 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                         className="h-9 rounded-lg px-2 text-sm"
                       />
                     </div>
-                  )}
-                  <div
-                    className="mt-2 flex flex-wrap items-center gap-1.5"
-                    aria-label={`${projectName} daily totals`}
-                  >
-                    {WEEKDAY_LABELS.map((label, index) => {
-                      const dayTotal = projectTotalsByDay[index] ?? 0;
-                      return (
-                        <span
-                          key={`${projectId}-${label}-header-total`}
-                          className={cn(
-                            "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.04em]",
-                            dayTotal > 0
-                              ? "border-[var(--color-border-strong)] bg-[var(--color-panel-strong)] text-[var(--color-text-soft)]"
-                              : "border-[var(--color-border)] text-[var(--color-text-muted)]",
-                          )}
-                        >
-                          <span>{label}</span>
-                          <span className="font-mono text-[11px] normal-case">{formatHours(dayTotal)}h</span>
-                        </span>
-                      );
-                    })}
-                    <span className="inline-flex items-center gap-1 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-panel-strong)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-text-soft)]">
-                      <span>Total</span>
-                      <span className="font-mono text-[11px] normal-case">{formatHours(total)}h</span>
-                    </span>
-                    <span className="text-[11px] text-[var(--color-text-muted)]">
-                      {taskCount} task{taskCount === 1 ? "" : "s"}
-                    </span>
                   </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => addRow({ overrideProjectId: projectId })}>
-                    Add Task
-                  </Button>
-                  {isCustom && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className={cn(
-                        pendingCustomProjectDeleteId === projectId &&
-                          "border border-[var(--color-danger)] bg-[var(--color-danger)] text-[#22050f] hover:bg-[var(--color-danger)] hover:text-[#22050f]",
-                      )}
-                      onClick={() => requestCustomProjectDelete(projectId)}
-                    >
-                      {pendingCustomProjectDeleteId === projectId ? "Confirm Delete" : "Delete Project"}
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => toggleProjectOpen(projectId)}
-                  >
-                    {isExpanded ? "Collapse" : "Expand"}
-                  </Button>
-                </div>
+                )}
               </header>
 
               {isExpanded && (
-                <div className="p-2 sm:p-3">
+                <div id={`project-panel-${projectId}`} className="p-2 sm:p-3">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
+                    <p className="text-xs text-[var(--color-text-muted)]">
+                      {visibleRowCount} row{visibleRowCount === 1 ? "" : "s"} in this project
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button size="sm" variant="secondary" onClick={() => addRow({ overrideProjectId: projectId })}>
+                        Add Task
+                      </Button>
+                      {isCustom && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className={cn(
+                            pendingCustomProjectDeleteId === projectId &&
+                              "border border-[var(--color-danger)] bg-[var(--color-danger)] text-[#22050f] hover:bg-[var(--color-danger)] hover:text-[#22050f]",
+                          )}
+                          onClick={() => requestCustomProjectDelete(projectId)}
+                        >
+                          {pendingCustomProjectDeleteId === projectId ? "Confirm Delete" : "Delete Project"}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                   {visibleRowCount === 0 ? (
                     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-panel-strong)] px-3 py-8 text-center text-sm text-[var(--color-text-muted)]">
                       No rows yet for this project.
