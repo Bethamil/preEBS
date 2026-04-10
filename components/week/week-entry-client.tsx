@@ -1103,7 +1103,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                 </span>
               </div>
 
-              <div className="flex min-h-8 flex-wrap items-center gap-2">
+              <div className="flex h-16 flex-wrap content-start items-start gap-2 overflow-hidden">
                 {hasConfigProjects && quickComboMatches.slice(0, 6).map((combo) => (
                   <button
                     key={comboKey(combo.projectId, combo.taskId, combo.hourTypeId)}
@@ -1150,10 +1150,8 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                           !exceededDayIndexSet.has(index) &&
                             !exactDayIndexSet.has(index) &&
                             "hover:bg-[var(--color-panel)]",
-                          exceededDayIndexSet.has(index) &&
-                            "bg-[var(--color-status-danger-bg)] text-[var(--color-status-danger-text)]",
-                          exactDayIndexSet.has(index) &&
-                            "bg-[var(--color-status-ok-bg)] text-[var(--color-status-ok-text)]",
+                          exceededDayIndexSet.has(index) && "text-[var(--color-status-danger-text)]",
+                          exactDayIndexSet.has(index) && "text-[var(--color-status-ok-text)]",
                           focusedDayIndex === index && "ring-2 ring-inset ring-[var(--color-ring)]",
                         )}
                         role="button"
@@ -1170,7 +1168,13 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="text-left">
-                            <p className="text-base font-semibold uppercase tracking-[0.04em] leading-none sm:text-lg">
+                            <p
+                              className={cn(
+                                "text-base font-semibold uppercase tracking-[0.04em] leading-none sm:text-lg",
+                                exceededDayIndexSet.has(index) && "text-[var(--color-status-danger-text)]",
+                                exactDayIndexSet.has(index) && "text-[var(--color-status-ok-text)]",
+                              )}
+                            >
                               {label}
                             </p>
                             <p className="mt-1 text-[11px] text-[var(--color-text-muted)]">
@@ -1200,7 +1204,15 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                           </button>
                         </div>
                         <div className="mt-4 flex items-end justify-between gap-2">
-                          <p className="text-[2rem] font-semibold leading-none sm:text-3xl">{dayTotal}h</p>
+                          <p
+                            className={cn(
+                              "text-[2rem] font-semibold leading-none sm:text-3xl",
+                              exceededDayIndexSet.has(index) && "text-[var(--color-status-danger-text)]",
+                              exactDayIndexSet.has(index) && "text-[var(--color-status-ok-text)]",
+                            )}
+                          >
+                            {dayTotal}h
+                          </p>
                           <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)] sm:text-[11px]">
                             Max {dayMax}h
                           </p>
@@ -1350,20 +1362,24 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
               </header>
 
               {isExpanded && (
-                <div id={`project-panel-${projectId}`} className="bg-[var(--color-panel)] p-3 sm:p-4">
-                  {!isCustom &&
-                    projectEbsName &&
-                    safeTrim(projectEbsName) !== safeTrim(projectName) && (
-                      <p className="mb-3 px-1 text-xs text-[var(--color-text-muted)]">
-                        EBS: {projectEbsName}
-                      </p>
-                    )}
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
-                    <p className="text-xs text-[var(--color-text-muted)]">
-                      {visibleRowCount} row{visibleRowCount === 1 ? "" : "s"} in this project
-                    </p>
+                <div id={`project-panel-${projectId}`} className="px-5 pb-5 pt-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-2">
+                      {!isCustom &&
+                        projectEbsName &&
+                        safeTrim(projectEbsName) !== safeTrim(projectName) && (
+                          <p className="text-xs text-[var(--color-text-muted)]">
+                            EBS: {projectEbsName}
+                          </p>
+                        )}
+                    </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Button size="sm" variant="secondary" onClick={() => addRow({ overrideProjectId: projectId })}>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="rounded-full bg-[var(--color-panel)] font-mono text-[11px] font-semibold uppercase tracking-[0.08em]"
+                        onClick={() => addRow({ overrideProjectId: projectId })}
+                      >
                         Add Task
                       </Button>
                       {isCustom && (
@@ -1371,6 +1387,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                           size="sm"
                           variant="ghost"
                           className={cn(
+                            "rounded-full bg-[var(--color-panel)] font-mono text-[11px] font-semibold uppercase tracking-[0.08em]",
                             pendingCustomProjectDeleteId === projectId &&
                               "border border-[var(--color-danger)] bg-[var(--color-danger)] text-[#22050f] hover:bg-[var(--color-danger)] hover:text-[#22050f]",
                           )}
@@ -1381,30 +1398,32 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                       )}
                     </div>
                   </div>
+
                   {visibleRowCount === 0 ? (
-                    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-panel-strong)] px-3 py-8 text-center text-sm text-[var(--color-text-muted)]">
+                    <div className="mt-4 rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-8 text-center text-sm text-[var(--color-text-muted)]">
                       No rows yet for this project.
                     </div>
                   ) : (
-                    <div className="max-h-[28rem] overflow-y-auto subtle-scroll rounded-xl border border-[var(--color-border)]">
-                      <table className="table-grid w-full table-fixed text-sm">
-                        <colgroup>
-                          <col className={shouldShowHourType ? "w-[24%]" : "w-[32%]"} />
-                          {shouldShowHourType && <col className="w-[17%]" />}
-                          <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
-                          <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
-                          <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
-                          <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
-                          <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
-                          <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
-                          <col className={shouldShowHourType ? "w-[11%]" : "w-[16%]"} />
-                        </colgroup>
-                        <thead>
-                          <tr className="text-left text-[11px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
-                            <th className="px-2 py-2 font-medium">Task</th>
-                            {shouldShowHourType && <th className="px-2 py-2 font-medium">Type</th>}
-                            {WEEKDAY_LABELS.map((label, index) => (
-                              <th key={`${projectId}-${label}`} className="px-1 py-2 font-medium">
+                    <div className="mt-4 border-t border-[var(--color-border)] pt-3">
+                      <div className="max-h-[28rem] overflow-y-auto subtle-scroll">
+                        <table className="table-grid w-full table-fixed text-sm">
+                          <colgroup>
+                            <col className={shouldShowHourType ? "w-[24%]" : "w-[32%]"} />
+                            {shouldShowHourType && <col className="w-[17%]" />}
+                            <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
+                            <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
+                            <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
+                            <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
+                            <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
+                            <col className={shouldShowHourType ? "w-[8%]" : "w-[8.5%]"} />
+                            <col className={shouldShowHourType ? "w-[11%]" : "w-[16%]"} />
+                          </colgroup>
+                          <thead>
+                            <tr className="text-left text-[11px] uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+                              <th className="px-2 py-2 font-medium">Task</th>
+                              {shouldShowHourType && <th className="px-2 py-2 font-medium">Type</th>}
+                              {WEEKDAY_LABELS.map((label, index) => (
+                                <th key={`${projectId}-${label}`} className="px-1 py-2 font-medium">
                                 <button
                                   type="button"
                                   className={cn(
@@ -1615,6 +1634,7 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                           </tr>
                         </tfoot>
                       </table>
+                    </div>
                     </div>
                   )}
                 </div>
