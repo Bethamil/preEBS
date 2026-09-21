@@ -28,7 +28,8 @@ import type {
   WeekDocument,
   WeekRowInput,
 } from "@/lib/types";
-import { clampHours, cn, formatHours, parseNumberInput, safeTrim } from "@/lib/utils";
+import { HoursInput } from "@/components/ui/hours-input";
+import { clampHours, cn, formatHours, safeTrim } from "@/lib/utils";
 
 const PROJECT_ACCENT_COLORS = [
   "#69E48A",
@@ -1563,8 +1564,8 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                                       focusedDayIndex === dayIndex && "bg-[rgba(105,228,138,0.14)]",
                                     )}
                                   >
-                                    <Input
-                                      aria-label={`${WEEKDAY_LABELS[dayIndex]} hours`}
+                                    <HoursInput
+                                      ariaLabel={`${WEEKDAY_LABELS[dayIndex]} hours`}
                                       ref={(node) => {
                                         const key = `${row.id}:${dayIndex}`;
                                         if (node) {
@@ -1573,13 +1574,11 @@ export function WeekEntryClient({ weekStartDate }: { weekStartDate: string }) {
                                           inputRefs.current.delete(key);
                                         }
                                       }}
-                                      inputMode="decimal"
-                                      value={row.hours[dayIndex] === 0 ? "" : row.hours[dayIndex]}
+                                      value={row.hours[dayIndex]}
                                       onFocus={() => {
                                         setFocusedDayIndex(dayIndex);
                                       }}
-                                      onChange={(event) => {
-                                        const hours = parseNumberInput(event.target.value);
+                                      onChangeHours={(hours) => {
                                         updateRow(
                                           row.id,
                                           (current) => {

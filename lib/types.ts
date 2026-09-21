@@ -104,7 +104,7 @@ export interface DatabaseDocument {
 export interface ExportHourTypeNode {
   hourTypeId: string;
   hourTypeName: string;
-  hours: number;
+  hours: string;
 }
 
 export interface ExportTaskNode {
@@ -123,17 +123,17 @@ export interface ExportDayNode {
   date: IsoDateString;
   projects: ExportProjectNode[];
   totals: {
-    hours: number;
+    hours: string;
   };
 }
 
 export interface WeekExportDocument {
   weekStart: IsoDateString;
   weekEnd: IsoDateString;
-  maxHoursPerDay: number[];
+  maxHoursPerDay: string[];
   days: ExportDayNode[];
   totals: {
-    hours: number;
+    hours: string;
   };
 }
 

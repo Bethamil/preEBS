@@ -1,14 +1,30 @@
 import { WEEKDAY_COUNT } from "@/lib/constants";
 import { getWeekDates } from "@/lib/date";
 import type {
-  ExportDayNode,
   ExportHourTypeNode,
-  ExportProjectNode,
-  ExportTaskNode,
   UserConfig,
   WeekDocument,
   WeekExportDocument,
 } from "@/lib/types";
+import { formatHours } from "@/lib/utils";
+
+interface DraftHourType {
+  hourTypeId: string;
+  hourTypeName: string;
+  hours: number;
+}
+
+interface DraftTask {
+  taskId: string;
+  taskName: string;
+  hourTypes: DraftHourType[];
+}
+
+interface DraftProject {
+  projectId: string;
+  projectName: string;
+  tasks: DraftTask[];
+}
 
 function indexMap(ids: string[]): Map<string, number> {
   const map = new Map<string, number>();
@@ -50,16 +66,16 @@ export function buildWeekExport(config: UserConfig, week: WeekDocument): WeekExp
     ),
   );
 
-  const dayNodes: ExportDayNode[] = dates.map((date) => ({
+  const dayNodes = dates.map((date) => ({
     date,
-    projects: [],
+    projects: [] as DraftProject[],
     totals: {
       hours: 0,
     },
   }));
 
   for (let dayIndex = 0; dayIndex < WEEKDAY_COUNT; dayIndex += 1) {
-    const projectMap = new Map<string, ExportProjectNode>();
+    const projectMap = new Map<string, DraftProject>();
 
     for (const row of week.rows) {
       const hours = row.hours[dayIndex] ?? 0;
@@ -107,13 +123,13 @@ export function buildWeekExport(config: UserConfig, week: WeekDocument): WeekExp
       taskOrder,
       hourTypeOrder,
     ).map((project) => {
-      const sortedTasks: ExportTaskNode[] = sortByOrder(
+      const sortedTasks: DraftTask[] = sortByOrder(
         project.tasks,
         projectOrder,
         taskOrder,
         hourTypeOrder,
       ).map((task) => {
-        const sortedHourTypes: ExportHourTypeNode[] = sortByOrder(
+        const sortedHourTypes: DraftHourType[] = sortByOrder(
           task.hourTypes,
           projectOrder,
           taskOrder,
@@ -137,10 +153,30 @@ export function buildWeekExport(config: UserConfig, week: WeekDocument): WeekExp
   return {
     weekStart: week.weekStartDate,
     weekEnd: week.weekEndDate,
-    maxHoursPerDay: config.maxHoursPerDay,
-    days: dayNodes,
+    maxHoursPerDay: config.maxHoursPerDay.map((hours) => formatHours(hours)),
+    days: dayNodes.map((day) => ({
+      date: day.date,
+      projects: day.projects.map((project) => ({
+        projectId: project.projectId,
+        projectName: project.projectName,
+        tasks: project.tasks.map((task) => ({
+          taskId: task.taskId,
+          taskName: task.taskName,
+          hourTypes: task.hourTypes.map(
+            (hourType): ExportHourTypeNode => ({
+              hourTypeId: hourType.hourTypeId,
+              hourTypeName: hourType.hourTypeName,
+              hours: formatHours(hourType.hours),
+            }),
+          ),
+        })),
+      })),
+      totals: {
+        hours: formatHours(day.totals.hours),
+      },
+    })),
     totals: {
-      hours: weekTotal,
+      hours: formatHours(weekTotal),
     },
   };
 }

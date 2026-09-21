@@ -192,7 +192,10 @@ function importIntoEbsPage(rawJson, options) {
   }
 
   function toNumber(value) {
-    const numeric = Number(value);
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value : 0;
+    }
+    const numeric = Number(String(value ?? "").trim().replace(",", "."));
     return Number.isFinite(numeric) ? numeric : 0;
   }
 
@@ -476,7 +479,10 @@ function importIntoEbsPage(rawJson, options) {
       return String(rounded);
     }
 
-    return String(rounded).replace(/\.0+$/, "").replace(/(\.\d*?)0+$/, "$1");
+    return String(rounded)
+      .replace(/\.0+$/, "")
+      .replace(/(\.\d*?)0+$/, "$1")
+      .replace(".", ",");
   }
 
   function setInputValue(input, value) {

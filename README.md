@@ -8,7 +8,7 @@ Enter your hours in PreEBS, then import them into EBS with the included Chrome o
 
 1. Configure projects/tasks in `/config` (EBS name + optional human label).
 2. Enter hours in `/week/[weekStartDate]`.
-3. Export JSON from PreEBS.
+3. Export JSON from PreEBS. Hours use a comma (`"8,5"`).
 4. Import JSON into EBS with the browser extension.
 
 ## Config import/export

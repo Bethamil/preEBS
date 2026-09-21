@@ -12,6 +12,7 @@ import {
   WEEKDAY_LABELS,
 } from "@/lib/constants";
 import type { Project, UserConfig } from "@/lib/types";
+import { HoursInput } from "@/components/ui/hours-input";
 import { cn, formatHours } from "@/lib/utils";
 
 const PROJECT_ACCENT_COLORS = [
@@ -581,16 +582,14 @@ export function ConfigClient() {
                   <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
                     {label}
                   </span>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={24}
+                  <HoursInput
+                    ariaLabel={`${label} max hours`}
                     value={config.maxHoursPerDay[index]}
+                    blankWhenZero={false}
                     className="h-9"
-                    onChange={(event) => {
+                    onChangeHours={(hours) => {
                       const next = [...config.maxHoursPerDay];
-                      const parsed = Number(event.target.value);
-                      next[index] = Number.isFinite(parsed) ? Math.max(0, Math.min(24, parsed)) : 0;
+                      next[index] = hours;
                       setConfig({
                         ...config,
                         maxHoursPerDay: next,
