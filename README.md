@@ -28,6 +28,7 @@ Run it from this repository:
 npm run cli -- config
 npm run cli -- weeks
 npm run cli -- week --date 2026-09-25
+npm run cli -- export --date 2026-09-25
 npm run cli -- book --date 2026-09-25 --project PROJECT_ID --task TASK_ID --hours 7.5
 ```
 
@@ -45,6 +46,12 @@ PREEBS_URL=http://localhost:43117 preebs config
 ```
 
 `book` sets the hours for one date and project/task/hour-type combination rather than adding to them, making retries safe. It validates configured IDs, weekdays, half-hour increments, and the configured maximum hours per day. The hour type can be omitted when the task has exactly one.
+
+`export` writes the selected week in the JSON format consumed by the Chrome and Firefox extensions. It defaults to `preebs-WEEK-MONDAY.json` in the current directory, or accepts a custom path:
+
+```bash
+preebs export --date 2026-09-25 --output ~/Downloads/ebs-hours.json
+```
 
 ### Agent skill
 

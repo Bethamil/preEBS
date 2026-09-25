@@ -1,6 +1,6 @@
 ---
 name: preebs
-description: Book and inspect work hours in PreEBS through its CLI. Use this skill whenever a user asks an agent to register, change, check, or list timesheet hours, projects, tasks, weekdays, or PreEBS weeks, even when they only describe the work and date informally.
+description: Book, inspect, and export work hours in PreEBS through its CLI. Use this skill whenever a user asks an agent to register, change, check, list, or export timesheet hours, projects, tasks, weekdays, or PreEBS weeks, including preparing JSON for the EBS browser extension.
 compatibility: Requires Node.js 18+ and a running PreEBS server with the preebs CLI available.
 ---
 
@@ -40,6 +40,12 @@ preebs weeks
 # Full week containing this date; any date in the week is accepted
 preebs week --date 2026-09-25
 
+# Export extension-ready JSON; defaults to preebs-2026-09-21.json
+preebs export --date 2026-09-25
+
+# Export to a chosen path
+preebs export --date 2026-09-25 --output ~/Downloads/ebs-hours.json
+
 # Set hours for one workday and configured combination
 preebs book \
   --date 2026-09-25 \
@@ -69,3 +75,11 @@ preebs book \
 - A note belongs to the entire project/task/hour-type row, not to an individual day. Only pass `--note` when the user intends to set or replace that row note.
 
 Never bypass a validation failure by modifying `data/preebs-db.json`. Explain the failure and ask for corrected input when needed.
+
+## Export Semantics
+
+- `export` accepts any date in the requested week and exports Monday through Friday.
+- The output is the exact hierarchical JSON consumed by the Chrome and Firefox extensions.
+- Without `--output`, write `preebs-WEEK-MONDAY.json` in the current directory.
+- Do not overwrite an existing file. Choose another `--output` path or ask the user before replacing anything.
+- Report the absolute output path returned by the command so the user can select it in the extension.

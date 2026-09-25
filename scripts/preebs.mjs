@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFile } from "node:fs/promises";
+import { writeFile, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -13,7 +13,11 @@ Usage:
   preebs config [--url URL]
   preebs weeks [--url URL]
   preebs week --date YYYY-MM-DD [--url URL]
+  preebs export --date YYYY-MM-DD [--output FILE] [--url URL]
   preebs book --date YYYY-MM-DD --project ID --task ID --hours NUMBER [options]
+
+Export options:
+  --output FILE    Output path (default: preebs-WEEK-MONDAY.json)
 
 Book options:
   --hour-type ID   Required only if the task has multiple hour types
@@ -99,6 +103,24 @@ async function request(baseUrl, path, init) {
   return body;
 }
 
+function weekStart(dateValue) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateValue);
+  if (!match) {
+    throw new Error("--date must use the YYYY-MM-DD format");
+  }
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  if (
+    date.getUTCFullYear() !== Number(match[1]) ||
+    date.getUTCMonth() !== Number(match[2]) - 1 ||
+    date.getUTCDate() !== Number(match[3])
+  ) {
+    throw new Error("--date must be a valid date");
+  }
+  const day = date.getUTCDay();
+  date.setUTCDate(date.getUTCDate() + (day === 0 ? -6 : 1 - day));
+  return date.toISOString().slice(0, 10);
+}
+
 async function main() {
   const { command, options } = parseArguments(process.argv.slice(2));
   if (!command || command === "help" || command === "--help") {
@@ -114,6 +136,23 @@ async function main() {
     result = await request(baseUrl, "/api/weeks");
   } else if (command === "week") {
     result = await request(baseUrl, `/api/weeks/${encodeURIComponent(required(options, "date"))}`);
+  } else if (command === "export") {
+    const date = required(options, "date");
+    const monday = weekStart(date);
+    const document = await request(
+      baseUrl,
+      `/api/weeks/${encodeURIComponent(date)}/export`,
+    );
+    const outputPath = path.resolve(options.output ?? `preebs-${monday}.json`);
+    try {
+      await writeFile(outputPath, `${JSON.stringify(document, null, 2)}\n`, { flag: "wx" });
+    } catch (error) {
+      if (error && error.code === "EEXIST") {
+        throw new Error(`Output file already exists: ${outputPath}`);
+      }
+      throw error;
+    }
+    result = { output: outputPath, weekStart: monday };
   } else if (command === "book") {
     const hoursValue = required(options, "hours").replace(",", ".");
     const hours = Number(hoursValue);
