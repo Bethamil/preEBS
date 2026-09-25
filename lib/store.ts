@@ -9,10 +9,14 @@ import {
   DEFAULT_HOUR_TYPE_NAME,
   DEFAULT_USER_ID,
   DEFAULT_USER_NAME,
+  HOUR_INCREMENT,
+  MAX_HOURS_PER_CELL,
   WEEKDAY_COUNT,
 } from "@/lib/constants";
-import { getWeekEndDate } from "@/lib/date";
+import { getWeekEndDate, normalizeWeekStart, parseIsoDate } from "@/lib/date";
 import type {
+  BookingInput,
+  BookingResult,
   DatabaseDocument,
   IsoDateString,
   Project,
@@ -45,6 +49,16 @@ const DB_PATH = resolveDbPath();
 
 let writeQueue: Promise<unknown> = Promise.resolve();
 const DEFAULT_MAX_HOURS_PER_DAY = 8;
+
+export class BookingError extends Error {
+  constructor(
+    message: string,
+    readonly status: number = 400,
+  ) {
+    super(message);
+    this.name = "BookingError";
+  }
+}
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -462,6 +476,138 @@ export async function saveWeek(
     db.weeks[key] = document;
     await writeDb(db);
     return document;
+  });
+}
+
+export async function bookHours(
+  input: BookingInput,
+  userId: string = DEFAULT_USER_ID,
+): Promise<BookingResult> {
+  return withWriteLock(async () => {
+    if (
+      typeof input.date !== "string" ||
+      typeof input.projectId !== "string" ||
+      typeof input.taskId !== "string"
+    ) {
+      throw new BookingError("date, projectId, and taskId are required");
+    }
+    if (input.hourTypeId !== undefined && typeof input.hourTypeId !== "string") {
+      throw new BookingError("hourTypeId must be a string");
+    }
+    if (input.note !== undefined && typeof input.note !== "string") {
+      throw new BookingError("note must be a string");
+    }
+
+    const date = parseIsoDate(input.date);
+    const weekStartDate = normalizeWeekStart(input.date);
+    if (!date || !weekStartDate) {
+      throw new BookingError("Date must use the YYYY-MM-DD format");
+    }
+
+    const dayIndex = date.getDay() - 1;
+    if (dayIndex < 0 || dayIndex >= WEEKDAY_COUNT) {
+      throw new BookingError("Hours can only be booked on Monday through Friday");
+    }
+    if (
+      !Number.isFinite(input.hours) ||
+      input.hours < 0 ||
+      input.hours > MAX_HOURS_PER_CELL ||
+      Math.abs(input.hours / HOUR_INCREMENT - Math.round(input.hours / HOUR_INCREMENT)) > 1e-9
+    ) {
+      throw new BookingError(
+        `Hours must be between 0 and ${MAX_HOURS_PER_CELL} in increments of ${HOUR_INCREMENT}`,
+      );
+    }
+
+    const db = await readDb();
+    ensureUser(db, userId);
+    const config = normalizeConfig(db.configs[userId] ?? createEmptyConfig(userId));
+    db.configs[userId] = config;
+
+    const project = config.projects.find((item) => item.id === safeTrim(input.projectId));
+    if (!project) {
+      throw new BookingError(`Unknown project ID: ${input.projectId}`, 404);
+    }
+    const task = project.tasks.find((item) => item.id === safeTrim(input.taskId));
+    if (!task) {
+      throw new BookingError(`Task ${input.taskId} does not belong to project ${input.projectId}`, 404);
+    }
+
+    const requestedHourTypeId = safeTrim(input.hourTypeId ?? "");
+    if (!requestedHourTypeId && task.hourTypes.length !== 1) {
+      throw new BookingError("hourTypeId is required when a task has zero or multiple hour types");
+    }
+    const hourType = task.hourTypes.find(
+      (item) => item.id === (requestedHourTypeId || task.hourTypes[0]?.id),
+    );
+    if (!hourType) {
+      throw new BookingError(`Unknown hour type ID for task ${input.taskId}`, 404);
+    }
+
+    const key = weekKey(userId, weekStartDate);
+    const existingWeek = db.weeks[key];
+    const rows = existingWeek?.rows.map((row) => ({ ...row, hours: [...row.hours] })) ?? [];
+    const row = rows.find(
+      (item) =>
+        item.projectId === project.id &&
+        item.taskId === task.id &&
+        item.hourTypeId === hourType.id,
+    );
+    const previousHours = row?.hours[dayIndex] ?? 0;
+    const currentDayTotal = rows.reduce((sum, item) => sum + (item.hours[dayIndex] ?? 0), 0);
+    const dayTotal = currentDayTotal - previousHours + input.hours;
+    const maxHoursForDay = config.maxHoursPerDay[dayIndex] ?? 0;
+    if (dayTotal > maxHoursForDay + 1e-9) {
+      throw new BookingError(
+        `Booking would exceed the daily maximum (${dayTotal} > ${maxHoursForDay})`,
+        409,
+      );
+    }
+
+    if (row) {
+      row.hours[dayIndex] = input.hours;
+      if (input.note !== undefined) {
+        row.note = safeTrim(input.note) || undefined;
+      }
+    } else {
+      const hours = Array.from({ length: WEEKDAY_COUNT }, () => 0);
+      hours[dayIndex] = input.hours;
+      rows.push({
+        id: randomUUID(),
+        projectId: project.id,
+        projectName: project.name,
+        taskId: task.id,
+        taskName: task.name,
+        hourTypeId: hourType.id,
+        hourTypeName: hourType.name,
+        hours,
+        note: input.note ? safeTrim(input.note) : undefined,
+      });
+    }
+
+    const now = nowIso();
+    const week: WeekDocument = {
+      id: existingWeek?.id ?? key,
+      userId,
+      weekStartDate,
+      weekEndDate: getWeekEndDate(weekStartDate),
+      customProjects: existingWeek?.customProjects ?? [],
+      rows,
+      createdAt: existingWeek?.createdAt ?? now,
+      updatedAt: now,
+    };
+    db.weeks[key] = week;
+    await writeDb(db);
+
+    return {
+      date: input.date,
+      dayIndex,
+      previousHours,
+      hours: input.hours,
+      dayTotal,
+      maxHoursForDay,
+      week,
+    };
   });
 }
 

@@ -71,6 +71,25 @@ export interface WeekRowInput {
   note?: string;
 }
 
+export interface BookingInput {
+  date: IsoDateString;
+  projectId: string;
+  taskId: string;
+  hourTypeId?: string;
+  hours: number;
+  note?: string;
+}
+
+export interface BookingResult {
+  date: IsoDateString;
+  dayIndex: number;
+  previousHours: number;
+  hours: number;
+  dayTotal: number;
+  maxHoursForDay: number;
+  week: WeekDocument;
+}
+
 export interface WeekCustomProjectInput {
   id: string;
   name: string;

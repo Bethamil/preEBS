@@ -9,6 +9,25 @@ let serverProcess = null;
 let startUrl = null;
 let isQuitting = false;
 
+function connectionFilePath() {
+  return path.join(app.getPath("userData"), "cli-connection.json");
+}
+
+function writeConnectionFile(url) {
+  fs.mkdirSync(app.getPath("userData"), { recursive: true });
+  fs.writeFileSync(connectionFilePath(), JSON.stringify({ url }), "utf-8");
+}
+
+function removeConnectionFile() {
+  try {
+    fs.unlinkSync(connectionFilePath());
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      console.error(`Could not remove CLI connection file: ${error.message}`);
+    }
+  }
+}
+
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -204,6 +223,7 @@ function shutdownServer() {
 
 app.on("before-quit", () => {
   isQuitting = true;
+  removeConnectionFile();
   shutdownServer();
 });
 
@@ -216,6 +236,7 @@ app.on("window-all-closed", () => {
 app.whenReady().then(async () => {
   try {
     startUrl = await resolveStartUrl();
+    writeConnectionFile(startUrl);
     createMainWindow(startUrl);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown startup error.";

@@ -18,6 +18,44 @@ In `/config`:
 1. Click **Export Config** to download `preebs-config-YYYY-MM-DD.json`.
 2. Click **Import Config** and select that file to replace the current configuration.
 
+## CLI for AI agents
+
+PreEBS includes a dependency-free CLI for inspecting configuration and booking hours. The web or desktop server must be running.
+
+Run it from this repository:
+
+```bash
+npm run cli -- config
+npm run cli -- weeks
+npm run cli -- week --date 2026-09-25
+npm run cli -- book --date 2026-09-25 --project PROJECT_ID --task TASK_ID --hours 7.5
+```
+
+Install the `preebs` command globally from a local checkout:
+
+```bash
+npm link
+preebs config
+```
+
+The CLI automatically connects to a running PreEBS desktop app. Otherwise it uses `http://localhost:3000` by default. Set `PREEBS_URL`, or pass `--url`, when PreEBS runs elsewhere:
+
+```bash
+PREEBS_URL=http://localhost:43117 preebs config
+```
+
+`book` sets the hours for one date and project/task/hour-type combination rather than adding to them, making retries safe. It validates configured IDs, weekdays, half-hour increments, and the configured maximum hours per day. The hour type can be omitted when the task has exactly one.
+
+### Agent skill
+
+Install the included skill so supported AI agents know the safe booking workflow and CLI semantics:
+
+```bash
+npx skills add Bethamil/preEBS --skill preebs
+```
+
+The skill source is in `skills/preebs/SKILL.md`.
+
 ## Chrome extension (JSON -> EBS)
 
 Extension folder:

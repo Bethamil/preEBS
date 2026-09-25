@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "main": "electron/main.cjs",
+  "bin": {
+    "preebs": "scripts/preebs.mjs"
+  },
   "scripts": {
     "dev": "npm run dev:web",
     "dev:web": "next dev",
@@ -12,6 +15,7 @@
     "build:desktop": "node scripts/clean-desktop-build.mjs && npm run build:web && node scripts/prepare-desktop.mjs && node scripts/generate-mac-icon.mjs && electron-builder --mac",
     "start": "npm run start:web",
     "start:web": "next start",
+    "cli": "node scripts/preebs.mjs",
     "start:desktop": "npm run build:web && node scripts/prepare-desktop.mjs && electron electron/main.cjs",
     "typecheck": "tsc --noEmit",
     "lint": "next lint"
