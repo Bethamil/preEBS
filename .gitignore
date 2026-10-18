@@ -4,7 +4,6 @@ node_modules
 .DS_Store
 .env*
 data/preebs-db.json
-legacy/data/preebs-db.json
 *.tsbuildinfo
 dist-desktop
 build/icon.png

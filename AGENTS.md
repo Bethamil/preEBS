@@ -12,8 +12,7 @@ PreEBS is a keyboard-first weekly timesheet. People enter Monday–Friday hours 
 - `crates/preebs-cli`: the `preebs` binary. No HTTP server
 - `crates/preebs-app`: Tauri v2 shell and a Svelte 5 + Vite UI
 - `chrome-extension/` and `firefox-extension/`: unchanged consumers of the week export
-- `legacy/`: the previous Next.js and Electron app, kept until the port is trusted
-- `docs/rust-plan.md`: domain rules and intentional differences from TypeScript
+- `docs/rust-plan.md`: domain rules and intentional differences from the previous TypeScript app (that tree is only in git history)
 - `docs/cli.md`: stable `--json` schemas
 
 The CLI and the app open the same SQLite file. A committed write bumps `meta.revision`. The app polls that counter.

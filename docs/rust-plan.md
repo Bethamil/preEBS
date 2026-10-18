@@ -1,8 +1,6 @@
 # PreEBS Rust rebuild
 
-This document is the spec for the Rust port. It was written from the TypeScript app (`lib/types.ts`, `lib/store.ts`, `lib/export.ts`, `lib/config-transfer.ts`, `lib/date.ts`, `lib/constants.ts`, `lib/utils.ts`, `scripts/preebs.mjs`, the week/config UI, and the EBS extensions) before any Rust code.
-
-The TypeScript app, Next.js server, and Electron shell move to `legacy/` once this port is in place. `chrome-extension/` and `firefox-extension/` stay where they are. They keep consuming the week export JSON unchanged.
+This document is the spec for the Rust port. It was written from the previous TypeScript app before any Rust code. That Next.js and Electron tree is no longer in the repository; it remains in git history. `chrome-extension/` and `firefox-extension/` stay where they are. They keep consuming the week export JSON unchanged.
 
 ## Why the UI is Svelte
 
@@ -26,7 +24,6 @@ crates/preebs-app/                  Svelte UI
 crates/preebs-app/src-tauri/        Tauri v2 shell, workspace member
 docs/rust-plan.md                   this file
 docs/cli.md                         stable JSON schemas
-legacy/                             previous Next.js + Electron app
 chrome-extension/                   unchanged
 firefox-extension/                  unchanged
 ```

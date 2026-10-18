@@ -96,4 +96,4 @@ cargo test --workspace
 
 Rust 1.90 (see `rust-toolchain.toml`). On Linux, install WebKitGTK 4.1 before building the app: `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`, `patchelf`.
 
-The previous Next.js and Electron app is in `legacy/`. Differences from that version are listed in [docs/rust-plan.md](docs/rust-plan.md).
+The previous Next.js and Electron app is not in this tree. It remains in git history. Differences from that version are listed in [docs/rust-plan.md](docs/rust-plan.md).
