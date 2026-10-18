@@ -1,0 +1,175 @@
+{
+  "config": {
+    "userId": "local-user",
+    "maxHoursPerDay": [
+      8,
+      7.5,
+      8,
+      8,
+      6
+    ],
+    "projects": [
+      {
+        "id": "proj-b",
+        "name": "Bravo",
+        "label": "Bravo Label",
+        "tasks": [
+          {
+            "id": "task-plan",
+            "name": "Plan",
+            "hourTypes": [
+              {
+                "id": "default-straight-time",
+                "name": "DICTU Uren - (Straight Time)"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "proj-a",
+        "name": "Alpha",
+        "tasks": [
+          {
+            "id": "task-design",
+            "name": "Design",
+            "hourTypes": [
+              {
+                "id": "default-straight-time",
+                "name": "DICTU Uren - (Straight Time)"
+              },
+              {
+                "id": "ot-1",
+                "name": "Overtime"
+              }
+            ]
+          },
+          {
+            "id": "task-build",
+            "name": "Build",
+            "hourTypes": [
+              {
+                "id": "default-straight-time",
+                "name": "DICTU Uren - (Straight Time)"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "updatedAt": "2026-09-20T08:00:00.000Z"
+  },
+  "week": {
+    "id": "local-user:2026-09-21",
+    "userId": "local-user",
+    "weekStartDate": "2026-09-21",
+    "weekEndDate": "2026-09-25",
+    "customProjects": [
+      {
+        "id": "custom-1",
+        "name": "Side Quest"
+      }
+    ],
+    "rows": [
+      {
+        "id": "row-unknown",
+        "projectId": "custom-1",
+        "projectName": "Side Quest",
+        "taskId": "custom-task",
+        "taskName": "Misc",
+        "hourTypeId": "custom-ht",
+        "hourTypeName": "DICTU Uren - (Straight Time)",
+        "hours": [
+          1,
+          0,
+          0,
+          0,
+          0.5
+        ],
+        "note": "should not appear in export"
+      },
+      {
+        "id": "row-build",
+        "projectId": "proj-a",
+        "projectName": "Alpha",
+        "taskId": "task-build",
+        "taskName": "Build",
+        "hourTypeId": "default-straight-time",
+        "hourTypeName": "DICTU Uren - (Straight Time)",
+        "hours": [
+          0,
+          7.5,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "id": "row-ot",
+        "projectId": "proj-a",
+        "projectName": "Alpha",
+        "taskId": "task-design",
+        "taskName": "Design",
+        "hourTypeId": "ot-1",
+        "hourTypeName": "Overtime",
+        "hours": [
+          2,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "id": "row-design",
+        "projectId": "proj-a",
+        "projectName": "Alpha",
+        "taskId": "task-design",
+        "taskName": "Design",
+        "hourTypeId": "default-straight-time",
+        "hourTypeName": "DICTU Uren - (Straight Time)",
+        "hours": [
+          4,
+          0,
+          0,
+          0,
+          8
+        ]
+      },
+      {
+        "id": "row-plan",
+        "projectId": "proj-b",
+        "projectName": "Bravo",
+        "taskId": "task-plan",
+        "taskName": "Plan",
+        "hourTypeId": "default-straight-time",
+        "hourTypeName": "DICTU Uren - (Straight Time)",
+        "hours": [
+          8,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "id": "row-zero",
+        "projectId": "proj-b",
+        "projectName": "Bravo",
+        "taskId": "task-plan",
+        "taskName": "Plan",
+        "hourTypeId": "unused",
+        "hourTypeName": "Unused",
+        "hours": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "createdAt": "2026-09-20T08:00:00.000Z",
+    "updatedAt": "2026-09-20T09:00:00.000Z"
+  }
+}

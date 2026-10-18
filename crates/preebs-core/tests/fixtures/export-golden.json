@@ -1,0 +1,161 @@
+{
+  "weekStart": "2026-09-21",
+  "weekEnd": "2026-09-25",
+  "maxHoursPerDay": [
+    "8",
+    "7,5",
+    "8",
+    "8",
+    "6"
+  ],
+  "days": [
+    {
+      "date": "2026-09-21",
+      "projects": [
+        {
+          "projectId": "proj-b",
+          "projectName": "Bravo",
+          "tasks": [
+            {
+              "taskId": "task-plan",
+              "taskName": "Plan",
+              "hourTypes": [
+                {
+                  "hourTypeId": "default-straight-time",
+                  "hourTypeName": "DICTU Uren - (Straight Time)",
+                  "hours": "8"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "projectId": "proj-a",
+          "projectName": "Alpha",
+          "tasks": [
+            {
+              "taskId": "task-design",
+              "taskName": "Design",
+              "hourTypes": [
+                {
+                  "hourTypeId": "ot-1",
+                  "hourTypeName": "Overtime",
+                  "hours": "2"
+                },
+                {
+                  "hourTypeId": "default-straight-time",
+                  "hourTypeName": "DICTU Uren - (Straight Time)",
+                  "hours": "4"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "projectId": "custom-1",
+          "projectName": "Side Quest",
+          "tasks": [
+            {
+              "taskId": "custom-task",
+              "taskName": "Misc",
+              "hourTypes": [
+                {
+                  "hourTypeId": "custom-ht",
+                  "hourTypeName": "DICTU Uren - (Straight Time)",
+                  "hours": "1"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "hours": "15"
+      }
+    },
+    {
+      "date": "2026-09-22",
+      "projects": [
+        {
+          "projectId": "proj-a",
+          "projectName": "Alpha",
+          "tasks": [
+            {
+              "taskId": "task-build",
+              "taskName": "Build",
+              "hourTypes": [
+                {
+                  "hourTypeId": "default-straight-time",
+                  "hourTypeName": "DICTU Uren - (Straight Time)",
+                  "hours": "7,5"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "hours": "7,5"
+      }
+    },
+    {
+      "date": "2026-09-23",
+      "projects": [],
+      "totals": {
+        "hours": "0"
+      }
+    },
+    {
+      "date": "2026-09-24",
+      "projects": [],
+      "totals": {
+        "hours": "0"
+      }
+    },
+    {
+      "date": "2026-09-25",
+      "projects": [
+        {
+          "projectId": "proj-a",
+          "projectName": "Alpha",
+          "tasks": [
+            {
+              "taskId": "task-design",
+              "taskName": "Design",
+              "hourTypes": [
+                {
+                  "hourTypeId": "default-straight-time",
+                  "hourTypeName": "DICTU Uren - (Straight Time)",
+                  "hours": "8"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "projectId": "custom-1",
+          "projectName": "Side Quest",
+          "tasks": [
+            {
+              "taskId": "custom-task",
+              "taskName": "Misc",
+              "hourTypes": [
+                {
+                  "hourTypeId": "custom-ht",
+                  "hourTypeName": "DICTU Uren - (Straight Time)",
+                  "hours": "0,5"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "totals": {
+        "hours": "8,5"
+      }
+    }
+  ],
+  "totals": {
+    "hours": "31"
+  }
+}

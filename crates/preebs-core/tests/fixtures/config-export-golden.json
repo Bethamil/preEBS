@@ -1,0 +1,65 @@
+{
+  "type": "preebs-config",
+  "version": 1,
+  "exportedAt": "2026-09-20T10:00:00.000Z",
+  "config": {
+    "userId": "local-user",
+    "maxHoursPerDay": [
+      8,
+      7.5,
+      8,
+      8,
+      6
+    ],
+    "projects": [
+      {
+        "id": "proj-b",
+        "name": "Bravo",
+        "label": "Bravo Label",
+        "tasks": [
+          {
+            "id": "task-plan",
+            "name": "Plan",
+            "hourTypes": [
+              {
+                "id": "default-straight-time",
+                "name": "DICTU Uren - (Straight Time)"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "proj-a",
+        "name": "Alpha",
+        "tasks": [
+          {
+            "id": "task-design",
+            "name": "Design",
+            "hourTypes": [
+              {
+                "id": "default-straight-time",
+                "name": "DICTU Uren - (Straight Time)"
+              },
+              {
+                "id": "ot-1",
+                "name": "Overtime"
+              }
+            ]
+          },
+          {
+            "id": "task-build",
+            "name": "Build",
+            "hourTypes": [
+              {
+                "id": "default-straight-time",
+                "name": "DICTU Uren - (Straight Time)"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "updatedAt": "2026-09-20T08:00:00.000Z"
+  }
+}
