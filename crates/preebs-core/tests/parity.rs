@@ -12,7 +12,10 @@ fn fixture(name: &str) -> PathBuf {
 }
 
 fn read(name: &str) -> String {
-    std::fs::read_to_string(fixture(name)).unwrap()
+    // Windows checkouts may rewrite LF fixtures to CRLF. Exports are LF.
+    std::fs::read_to_string(fixture(name))
+        .unwrap()
+        .replace("\r\n", "\n")
 }
 
 #[test]

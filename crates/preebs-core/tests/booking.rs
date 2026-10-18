@@ -349,6 +349,7 @@ fn migration_is_idempotent_and_dry_run_writes_nothing() {
             env!("CARGO_MANIFEST_DIR")
         ))
         .unwrap()
+        .replace("\r\n", "\n")
     );
 
     app.add_custom_project("2026-10-05", "Only local", None, false)

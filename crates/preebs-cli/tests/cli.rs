@@ -344,6 +344,7 @@ fn migrate_then_export_matches_golden() {
         "{}/../preebs-core/tests/fixtures/export-golden.json",
         env!("CARGO_MANIFEST_DIR")
     ))
-    .unwrap();
+    .unwrap()
+    .replace("\r\n", "\n");
     assert_eq!(fs::read_to_string(output).unwrap(), golden);
 }
