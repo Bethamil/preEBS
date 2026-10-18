@@ -1,7 +1,7 @@
 <script>
   import { formatHours, parseHours } from "./lib/format.js";
 
-  let { value = 0, label, cell, oncommit, onmove } = $props();
+  let { value = 0, label, cell, oncommit, onmove, onfocus = () => {} } = $props();
   let draft = $state(null);
   let invalid = $state(false);
 
@@ -38,10 +38,12 @@
   data-cell={cell}
   aria-label={label}
   aria-invalid={invalid}
+  placeholder="–"
   value={shown()}
   onfocus={(event) => {
     draft = formatHours(value);
     invalid = false;
+    onfocus();
     event.currentTarget.select();
   }}
   oninput={(event) => (draft = event.currentTarget.value)}

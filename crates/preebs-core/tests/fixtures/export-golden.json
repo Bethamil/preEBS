@@ -22,7 +22,7 @@
               "hourTypes": [
                 {
                   "hourTypeId": "default-straight-time",
-                  "hourTypeName": "DICTU Uren - (Straight Time)",
+                  "hourTypeName": "Straight Time",
                   "hours": "8"
                 }
               ]
@@ -44,7 +44,7 @@
                 },
                 {
                   "hourTypeId": "default-straight-time",
-                  "hourTypeName": "DICTU Uren - (Straight Time)",
+                  "hourTypeName": "Straight Time",
                   "hours": "4"
                 }
               ]
@@ -61,7 +61,7 @@
               "hourTypes": [
                 {
                   "hourTypeId": "custom-ht",
-                  "hourTypeName": "DICTU Uren - (Straight Time)",
+                  "hourTypeName": "Straight Time",
                   "hours": "1"
                 }
               ]
@@ -86,7 +86,7 @@
               "hourTypes": [
                 {
                   "hourTypeId": "default-straight-time",
-                  "hourTypeName": "DICTU Uren - (Straight Time)",
+                  "hourTypeName": "Straight Time",
                   "hours": "7,5"
                 }
               ]
@@ -125,7 +125,7 @@
               "hourTypes": [
                 {
                   "hourTypeId": "default-straight-time",
-                  "hourTypeName": "DICTU Uren - (Straight Time)",
+                  "hourTypeName": "Straight Time",
                   "hours": "8"
                 }
               ]
@@ -142,7 +142,7 @@
               "hourTypes": [
                 {
                   "hourTypeId": "custom-ht",
-                  "hourTypeName": "DICTU Uren - (Straight Time)",
+                  "hourTypeName": "Straight Time",
                   "hours": "0,5"
                 }
               ]

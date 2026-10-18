@@ -11,3 +11,4 @@ build/icon.png
 /target
 crates/preebs-app/node_modules
 crates/preebs-app/dist
+crates/preebs-app/src-tauri/binaries/

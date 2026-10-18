@@ -20,7 +20,7 @@
             "hourTypes": [
               {
                 "id": "default-straight-time",
-                "name": "DICTU Uren - (Straight Time)"
+                "name": "Straight Time"
               }
             ]
           }
@@ -36,7 +36,7 @@
             "hourTypes": [
               {
                 "id": "default-straight-time",
-                "name": "DICTU Uren - (Straight Time)"
+                "name": "Straight Time"
               },
               {
                 "id": "ot-1",
@@ -50,7 +50,7 @@
             "hourTypes": [
               {
                 "id": "default-straight-time",
-                "name": "DICTU Uren - (Straight Time)"
+                "name": "Straight Time"
               }
             ]
           }
@@ -78,7 +78,7 @@
         "taskId": "custom-task",
         "taskName": "Misc",
         "hourTypeId": "custom-ht",
-        "hourTypeName": "DICTU Uren - (Straight Time)",
+        "hourTypeName": "Straight Time",
         "hours": [
           1,
           0,
@@ -95,7 +95,7 @@
         "taskId": "task-build",
         "taskName": "Build",
         "hourTypeId": "default-straight-time",
-        "hourTypeName": "DICTU Uren - (Straight Time)",
+        "hourTypeName": "Straight Time",
         "hours": [
           0,
           7.5,
@@ -127,7 +127,7 @@
         "taskId": "task-design",
         "taskName": "Design",
         "hourTypeId": "default-straight-time",
-        "hourTypeName": "DICTU Uren - (Straight Time)",
+        "hourTypeName": "Straight Time",
         "hours": [
           4,
           0,
@@ -143,7 +143,7 @@
         "taskId": "task-plan",
         "taskName": "Plan",
         "hourTypeId": "default-straight-time",
-        "hourTypeName": "DICTU Uren - (Straight Time)",
+        "hourTypeName": "Straight Time",
         "hours": [
           8,
           0,

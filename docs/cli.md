@@ -19,8 +19,9 @@ cargo build --release -p preebs-cli
 Resolution order for the database path: `--db`, then `PREEBS_DB_PATH`, then `--data-dir/preebs.sqlite`, then `PREEBS_DATA_DIR/preebs.sqlite`, then the platform data directory:
 
 - macOS: `~/Library/Application Support/PreEBS/preebs.sqlite`
-- Windows: `%APPDATA%\PreEBS\preebs.sqlite`
 - Linux: `$XDG_DATA_HOME/PreEBS/preebs.sqlite` or `~/.local/share/PreEBS/preebs.sqlite`
+
+The CLI and the desktop app are supported on macOS and Linux.
 
 Opening the database creates it and seeds an empty config. That seed does not bump `revision`. A committed write bumps `meta.revision` by one. A dry run leaves `revision` unchanged.
 
@@ -63,14 +64,14 @@ Successful `--json` output is pretty-printed with a trailing newline. `--dry-run
 ### `config show`
 
 ```json
-{ "config": { "userId": "local-user", "maxHoursPerDay": [8, 8, 8, 8, 8], "defaultHourTypeName": "DICTU Uren - (Straight Time)", "projects": [], "updatedAt": "..." } }
+{ "config": { "userId": "local-user", "maxHoursPerDay": [8, 8, 8, 8, 8], "defaultHourTypeName": "Straight Time", "projects": [], "updatedAt": "..." } }
 ```
 
 `label` is omitted when a project has none. `projects[].tasks[].hourTypes[]` is `{ "id", "name" }`.
 
 ### `config set`
 
-Requires `--max-hours` and/or `--default-hour-type`. Same `{ "config" }` object. Changing the default hour type name does not rewrite existing tasks. New tasks that omit `--hour-type` receive that name. If the name matches `DICTU Uren - (Straight Time)` case-insensitively, the id is `default-straight-time`. Otherwise the id is new.
+Requires `--max-hours` and/or `--default-hour-type`. Same `{ "config" }` object. Changing the default hour type name does not rewrite existing tasks. New tasks that omit `--hour-type` receive that name. If the name matches `Straight Time` case-insensitively, the id is `default-straight-time`. Otherwise the id is new. A config file that already contains other hour-type names keeps those names.
 
 ### `config export [--out FILE]`
 

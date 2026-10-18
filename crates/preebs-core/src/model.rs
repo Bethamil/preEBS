@@ -7,7 +7,7 @@ use crate::text::now_iso;
 pub const DEFAULT_USER_ID: &str = "local-user";
 pub const DEFAULT_USER_NAME: &str = "Local User";
 pub const DEFAULT_HOUR_TYPE_ID: &str = "default-straight-time";
-pub const DEFAULT_HOUR_TYPE_NAME: &str = "DICTU Uren - (Straight Time)";
+pub const DEFAULT_HOUR_TYPE_NAME: &str = "Straight Time";
 pub const WEEKDAY_LABELS: [&str; 5] = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 
 pub fn default_hour_type_name() -> String {

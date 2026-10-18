@@ -6,7 +6,7 @@
   import ConfigScreen from "./Config.svelte";
   import ExportScreen from "./Export.svelte";
   import { api, errorText, inTauri } from "./lib/api.js";
-  import { mondayOf, shiftWeek, weekRange } from "./lib/format.js";
+  import { mondayOf, shiftWeek } from "./lib/format.js";
   import { applyTheme, readTheme, writeTheme } from "./lib/theme.js";
 
   let view = $state("week");
@@ -22,9 +22,9 @@
   let weekApi = $state(null);
 
   const views = [
-    { id: "week", label: "Week", shortcut: "1" },
-    { id: "weeks", label: "Weeks", shortcut: "2" },
-    { id: "config", label: "Config", shortcut: "3" },
+    { id: "week", label: "Uren", shortcut: "1" },
+    { id: "weeks", label: "Weken", shortcut: "2" },
+    { id: "config", label: "Instellingen", shortcut: "3" },
     { id: "export", label: "Export", shortcut: "4" },
   ];
 
@@ -32,7 +32,7 @@
     const items = [
       ...views.map((item) => ({
         id: `nav-${item.id}`,
-        label: `Go to ${item.label}`,
+        label: item.id === "export" ? "Ga naar export" : `Ga naar ${item.label}`,
         hint: `Ctrl/Cmd ${item.shortcut}`,
         run: () => {
           view = item.id;
@@ -40,7 +40,7 @@
       })),
       {
         id: "week-prev",
-        label: "Previous week",
+        label: "Vorige week",
         hint: "Ctrl/Cmd Left",
         run: () => {
           view = "week";
@@ -49,7 +49,7 @@
       },
       {
         id: "week-next",
-        label: "Next week",
+        label: "Volgende week",
         hint: "Ctrl/Cmd Right",
         run: () => {
           view = "week";
@@ -58,7 +58,7 @@
       },
       {
         id: "week-today",
-        label: "Current week",
+        label: "Huidige week",
         run: () => {
           view = "week";
           weekStart = mondayOf();
@@ -66,13 +66,13 @@
       },
       {
         id: "week-copy",
-        label: "Copy previous week",
+        label: "Vorige week kopiëren",
         hint: "Ctrl/Cmd Shift C",
         run: () => weekApi?.copyPrevious(),
       },
       {
         id: "add-next",
-        label: "Add next missing line",
+        label: "Volgende ontbrekende regel",
         run: () => {
           view = "week";
           queueMicrotask(() => weekApi?.addNext());
@@ -80,15 +80,15 @@
       },
       {
         id: "export-save",
-        label: "Export week JSON",
+        label: "Exporteer week-JSON",
         hint: "Ctrl/Cmd E",
         run: () => {
           view = "export";
         },
       },
-      { id: "theme-system", label: "Theme: follow system", run: () => setTheme("system") },
-      { id: "theme-light", label: "Theme: light", run: () => setTheme("light") },
-      { id: "theme-dark", label: "Theme: dark", run: () => setTheme("dark") },
+      { id: "theme-system", label: "Thema: systeem", run: () => setTheme("system") },
+      { id: "theme-light", label: "Thema: licht", run: () => setTheme("light") },
+      { id: "theme-dark", label: "Thema: donker", run: () => setTheme("dark") },
     ];
     const query = paletteQuery.trim().toLowerCase();
     if (!query) return items;
@@ -228,7 +228,7 @@
           .catch(() => {});
       }, 1000);
     } else {
-      flash("Open PreEBS from the desktop app. The UI talks to the local database through Tauri.");
+      flash("Open PreEBS via de desktopapp. De interface praat via Tauri met de lokale database.");
     }
     return () => {
       media.removeEventListener("change", onScheme);
@@ -240,51 +240,50 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<div class="shell">
-  <header class="top">
-    <div class="brand">
-      <img src="/logo.png" alt="" width="92" height="28" />
-      <div>
-        <p class="eyebrow">Monday – Friday</p>
-        <h1>PreEBS</h1>
-      </div>
-    </div>
-    <nav aria-label="Screens">
-      {#each views as item (item.id)}
-        <button
-          type="button"
-          class:active={view === item.id}
-          aria-current={view === item.id ? "page" : undefined}
-          onclick={() => (view = item.id)}
-        >
-          {item.label}
-        </button>
-      {/each}
+<div class="app">
+  <aside class="sidebar">
+    <p class="brand">PreEBS</p>
+    <nav class="side-nav" aria-label="Schermen">
+      <button type="button" class="nav-item" class:active={view === "week"} aria-current={view === "week" ? "page" : undefined} onclick={() => (view = "week")}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <circle cx="12" cy="12" r="8" />
+          <path d="M12 8v5l3 2" stroke-linecap="round" />
+        </svg>
+        <span>Uren</span>
+      </button>
+      <button type="button" class="nav-item" class:active={view === "weeks"} aria-current={view === "weeks" ? "page" : undefined} onclick={() => (view = "weeks")}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <rect x="4" y="5" width="16" height="15" rx="2" />
+          <path d="M8 3.5V7M16 3.5V7M4 10h16" stroke-linecap="round" />
+        </svg>
+        <span>Weken</span>
+      </button>
+      <button type="button" class="nav-item" class:active={view === "config"} aria-current={view === "config" ? "page" : undefined} onclick={() => (view = "config")}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6.1 6.1l1.6 1.6M16.3 16.3l1.6 1.6M17.9 6.1l-1.6 1.6M7.7 16.3l-1.6 1.6" stroke-linecap="round" />
+        </svg>
+        <span>Instellingen</span>
+      </button>
     </nav>
-    <div class="top-actions">
-      <button type="button" onclick={() => setTheme(theme === "dark" ? "light" : theme === "light" ? "system" : "dark")}>
-        Theme: {theme}
-      </button>
-      <button type="button" onclick={() => (paletteOpen = true)}>
-        Commands <kbd>Ctrl K</kbd>
-      </button>
-    </div>
-  </header>
+    <p class="sidebar-meta" title={dbPath || "Database opent bij start"}>
+      {dbPath || "Database opent bij start"}
+    </p>
+  </aside>
 
-  {#if notice}
-    <p class="banner" role="status">{notice}</p>
-  {/if}
+  <div class="workspace">
+    {#if notice}
+      <p class="banner" role="status">{notice}</p>
+    {/if}
 
-  <main>
     {#if view === "week"}
       <WeekScreen
         {weekStart}
         {reloadToken}
-        rangeLabel={weekRange(weekStart)}
         bind:api={weekApi}
         onnotice={flash}
         onshift={(delta) => (weekStart = shiftWeek(weekStart, delta))}
-        ontoday={() => (weekStart = mondayOf())}
+        onexport={() => (view = "export")}
       />
     {:else if view === "weeks"}
       <WeeksScreen {reloadToken} onopen={openWeek} onexport={(date) => { weekStart = date; view = "export"; }} onnotice={flash} />
@@ -293,23 +292,18 @@
     {:else}
       <ExportScreen {weekStart} {reloadToken} onnotice={flash} />
     {/if}
-  </main>
-
-  <footer>
-    <span>{dbPath || "Database opens on launch"}</span>
-    <span>Revision {revision}</span>
-  </footer>
+  </div>
 </div>
 
 {#if paletteOpen}
   <div class="palette-backdrop">
-    <button type="button" class="backdrop-dismiss" aria-label="Close command palette" onclick={() => (paletteOpen = false)}></button>
-    <div class="palette" role="dialog" aria-modal="true" aria-label="Command palette">
+    <button type="button" class="backdrop-dismiss" aria-label="Opdrachtpalet sluiten" onclick={() => (paletteOpen = false)}></button>
+    <div class="palette" role="dialog" aria-modal="true" aria-label="Opdrachtpalet">
       <input
-        placeholder="Type a command"
+        placeholder="Typ een opdracht"
         bind:value={paletteQuery}
         oninput={() => (paletteIndex = 0)}
-        aria-label="Filter commands"
+        aria-label="Opdrachten filteren"
       />
       <ul role="listbox">
         {#each actions as action, index (action.id)}
@@ -327,7 +321,7 @@
           </li>
         {/each}
         {#if actions.length === 0}
-          <li class="empty">No matching command</li>
+          <li class="empty">Geen opdracht gevonden</li>
         {/if}
       </ul>
     </div>

@@ -39,10 +39,7 @@ fn json_flow_books_exports_and_rejects_conflicts() {
     let root = dir.path();
 
     let config = json_cmd(root, &["config", "show"]);
-    assert_eq!(
-        config["config"]["defaultHourTypeName"],
-        "DICTU Uren - (Straight Time)"
-    );
+    assert_eq!(config["config"]["defaultHourTypeName"], "Straight Time");
     assert_eq!(
         config["config"]["maxHoursPerDay"],
         serde_json::json!([8, 8, 8, 8, 8])

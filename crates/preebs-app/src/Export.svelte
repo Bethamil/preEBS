@@ -26,9 +26,9 @@
   async function copy() {
     try {
       await navigator.clipboard.writeText(text);
-      onnotice("Copied the export JSON.");
+      onnotice("Export-JSON gekopieerd.");
     } catch {
-      onnotice("Could not copy. Select the preview and copy it manually.");
+      onnotice("Kopiëren lukte niet. Selecteer de preview en kopieer handmatig.");
     }
   }
 
@@ -41,7 +41,7 @@
       });
       if (!path) return;
       await api.writeExportFile(path, text);
-      onnotice(`Wrote ${path}`);
+      onnotice(`Geschreven naar ${path}`);
     } catch (caught) {
       onnotice(errorText(caught));
     }
@@ -49,16 +49,16 @@
 </script>
 
 <section class="screen" aria-labelledby="export-title">
-  <div class="toolbar">
+  <div class="page-head">
     <div>
-      <h2 id="export-title">Export</h2>
-      <p>{weekRange(weekStart)}. This JSON is what the Chrome and Firefox extensions import. Saving never replaces an existing file.</p>
+      <h1 id="export-title">Exporteer EBS</h1>
+      <p class="sub">{weekRange(weekStart)}. Deze JSON importeren de Chrome- en Firefox-extensies. Opslaan vervangt nooit een bestaand bestand.</p>
     </div>
-    <div class="toolbar-actions">
-      <button type="button" onclick={copy} disabled={!text}>Copy</button>
-      <button type="button" onclick={saveFile} disabled={!text}>Save JSON…</button>
+    <div class="head-actions">
+      <button type="button" class="btn" onclick={copy} disabled={!text}>Kopieer</button>
+      <button type="button" class="btn btn-primary" onclick={saveFile} disabled={!text}>Bewaar JSON…</button>
     </div>
   </div>
   {#if error}<p class="banner danger" role="alert">{error}</p>{/if}
-  <pre aria-label="Week export JSON">{text || "Nothing to export yet."}</pre>
+  <pre aria-label="Weekexport JSON">{text || "Nog niets om te exporteren."}</pre>
 </section>

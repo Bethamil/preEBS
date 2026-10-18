@@ -24,7 +24,7 @@
     try {
       config = await api.getConfig();
       error = "";
-      status = "Loaded";
+      status = "Geladen";
     } catch (caught) {
       error = errorText(caught);
     }
@@ -46,9 +46,9 @@
     if (!config) return;
     try {
       config = await api.saveConfig(config);
-      status = "Saved";
+      status = "Opgeslagen";
       error = "";
-      onnotice("Config saved.");
+      onnotice("Configuratie opgeslagen.");
     } catch (caught) {
       error = errorText(caught);
       onnotice(error);
@@ -61,19 +61,19 @@
     for (const value of config.maxHoursPerDay) {
       const parsed = parseHours(String(value).replace(".", ","));
       if (parsed === null) {
-        error = "Max hours must be 0 through 24 in steps of 0.5.";
+        error = "Max uren moeten tussen 0 en 24 liggen, in stappen van 0,5.";
         return;
       }
       maxHours.push(parsed);
     }
     const name = collapse(config.defaultHourTypeName);
     if (!name) {
-      error = "Default hour type name is required.";
+      error = "Een naam voor het standaard uurtype is verplicht.";
       return;
     }
     try {
       config = await api.setSettings(maxHours, name);
-      status = "Saved";
+      status = "Opgeslagen";
       error = "";
     } catch (caught) {
       error = errorText(caught);
@@ -81,14 +81,14 @@
   }
 
   function addProject() {
-    config.projects.push({ id: uid(), name: "New project", label: null, tasks: [] });
+    config.projects.push({ id: uid(), name: "Nieuw project", label: null, tasks: [] });
     config.projects = config.projects;
   }
 
   function addTask(project) {
     project.tasks.push({
       id: uid(),
-      name: "New task",
+      name: "Nieuwe taak",
       hourTypes: [newHourType(config.defaultHourTypeName, [])],
     });
     config.projects = config.projects;
@@ -103,7 +103,7 @@
 
   function removeHourType(task, index) {
     if (task.hourTypes.length <= 1) {
-      error = "A task must keep at least one hour type.";
+      error = "Een taak moet minstens één uurtype houden.";
       return;
     }
     task.hourTypes.splice(index, 1);
@@ -121,7 +121,7 @@
       });
       if (!path) return;
       await api.writeExportFile(path, text);
-      onnotice(`Wrote ${path}`);
+      onnotice(`Geschreven naar ${path}`);
     } catch (caught) {
       onnotice(errorText(caught));
     }
@@ -133,7 +133,7 @@
       if (!path || Array.isArray(path)) return;
       const text = await api.readTextFile(path);
       config = await api.importConfigText(text);
-      onnotice("Config imported. Weeks were kept.");
+      onnotice("Configuratie geïmporteerd. Weken zijn bewaard.");
     } catch (caught) {
       onnotice(errorText(caught));
     }
@@ -145,7 +145,7 @@
       if (!path || Array.isArray(path)) return;
       const report = await api.migrate(path);
       await load();
-      onnotice(`Migrated ${report.projects} projects and ${report.weeks} weeks.`);
+      onnotice(`${report.projects} projecten en ${report.weeks} weken gemigreerd.`);
     } catch (caught) {
       onnotice(errorText(caught));
     }
@@ -153,16 +153,16 @@
 </script>
 
 <section class="screen" aria-labelledby="config-title">
-  <div class="toolbar">
+  <div class="page-head">
     <div>
-      <h2 id="config-title">Config</h2>
-      <p>Projects, tasks, and hour types. Changing the default hour type does not rewrite tasks you already have.</p>
+      <h1 id="config-title">Instellingen</h1>
+      <p class="sub">Projecten, taken en uurtypes. Het standaard uurtype wijzigen herschrijft bestaande taken niet.</p>
     </div>
-    <div class="toolbar-actions">
-      <button type="button" onclick={saveConfig}>Save config</button>
-      <button type="button" onclick={exportConfig}>Export</button>
-      <button type="button" onclick={importConfig}>Import</button>
-      <button type="button" onclick={migrate}>Migrate JSON</button>
+    <div class="head-actions">
+      <button type="button" class="btn btn-primary" onclick={saveConfig}>Configuratie opslaan</button>
+      <button type="button" class="btn" onclick={exportConfig}>Exporteer</button>
+      <button type="button" class="btn" onclick={importConfig}>Importeer</button>
+      <button type="button" class="btn" onclick={migrate}>Migreer JSON</button>
     </div>
   </div>
   {#if error}<p class="banner danger" role="alert">{error}</p>{/if}
@@ -177,11 +177,11 @@
       }}
     >
       <label class="grow">
-        Default hour type for new tasks
+        Standaard uurtype voor nieuwe taken
         <input bind:value={config.defaultHourTypeName} />
       </label>
       <fieldset>
-        <legend>Max hours per day</legend>
+        <legend>Max uren per dag</legend>
         <div class="max-grid">
           {#each DAYS as day, index (day)}
             <label>
@@ -191,7 +191,7 @@
                 onchange={(event) => {
                   const parsed = parseHours(event.currentTarget.value);
                   if (parsed === null) {
-                    error = "Max hours must be 0 through 24 in steps of 0.5.";
+                    error = "Max uren moeten tussen 0 en 24 liggen, in stappen van 0,5.";
                     event.currentTarget.value = formatHours(config.maxHoursPerDay[index]) || "0";
                     return;
                   }
@@ -203,12 +203,12 @@
           {/each}
         </div>
       </fieldset>
-      <button type="submit">Save settings</button>
+      <button type="submit" class="btn">Instellingen opslaan</button>
     </form>
 
     <label>
-      Search config
-      <input bind:value={query} placeholder="Project, task, or hour type" />
+      Configuratie zoeken
+      <input bind:value={query} placeholder="Project, taak of uurtype" />
     </label>
 
     <div class="projects">
@@ -216,7 +216,7 @@
         <article>
           <header>
             <label>
-              EBS name
+              EBS-naam
               <input bind:value={project.name} />
             </label>
             <label>
@@ -227,38 +227,38 @@
               />
             </label>
             <div class="row-actions">
-              <button type="button" aria-label="Move project up" onclick={() => move(config.projects, config.projects.indexOf(project), -1)}>Up</button>
-              <button type="button" aria-label="Move project down" onclick={() => move(config.projects, config.projects.indexOf(project), 1)}>Down</button>
-              <button type="button" onclick={() => { config.projects = config.projects.filter((item) => item.id !== project.id); }}>Remove</button>
+              <button type="button" aria-label="Project omhoog" onclick={() => move(config.projects, config.projects.indexOf(project), -1)}>Omhoog</button>
+              <button type="button" aria-label="Project omlaag" onclick={() => move(config.projects, config.projects.indexOf(project), 1)}>Omlaag</button>
+              <button type="button" onclick={() => { config.projects = config.projects.filter((item) => item.id !== project.id); }}>Verwijder</button>
             </div>
           </header>
           {#each project.tasks as task (task.id)}
             <div class="task">
               <label>
-                Task
+                Taak
                 <input bind:value={task.name} />
               </label>
               <div class="hours-edit">
                 {#each task.hourTypes as hourType, hourIndex (hourType.id)}
                   <label>
-                    Hour type
+                    Uurtype
                     <input bind:value={hourType.name} />
                   </label>
-                  <button type="button" aria-label="Remove hour type" disabled={task.hourTypes.length <= 1} onclick={() => removeHourType(task, hourIndex)}>×</button>
+                  <button type="button" aria-label="Uurtype verwijderen" disabled={task.hourTypes.length <= 1} onclick={() => removeHourType(task, hourIndex)}>×</button>
                 {/each}
-                <button type="button" onclick={() => addHourType(task)}>Add hour type</button>
+                <button type="button" onclick={() => addHourType(task)}>Uurtype toevoegen</button>
               </div>
               <div class="row-actions">
-                <button type="button" aria-label="Move task up" onclick={() => move(project.tasks, project.tasks.indexOf(task), -1)}>Up</button>
-                <button type="button" aria-label="Move task down" onclick={() => move(project.tasks, project.tasks.indexOf(task), 1)}>Down</button>
-                <button type="button" onclick={() => { project.tasks = project.tasks.filter((item) => item.id !== task.id); config.projects = config.projects; }}>Remove task</button>
+                <button type="button" aria-label="Taak omhoog" onclick={() => move(project.tasks, project.tasks.indexOf(task), -1)}>Omhoog</button>
+                <button type="button" aria-label="Taak omlaag" onclick={() => move(project.tasks, project.tasks.indexOf(task), 1)}>Omlaag</button>
+                <button type="button" onclick={() => { project.tasks = project.tasks.filter((item) => item.id !== task.id); config.projects = config.projects; }}>Taak verwijderen</button>
               </div>
             </div>
           {/each}
-          <button type="button" onclick={() => addTask(project)}>Add task</button>
+          <button type="button" class="add-row" onclick={() => addTask(project)}>+ Taak toevoegen</button>
         </article>
       {/each}
     </div>
-    <button type="button" onclick={addProject}>Add project</button>
+    <button type="button" class="btn" onclick={addProject}>Project toevoegen</button>
   {/if}
 </section>

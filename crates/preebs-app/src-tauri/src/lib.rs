@@ -183,40 +183,44 @@ pub fn run() {
             let db = PreEbs::open_default().map_err(err_string)?;
             app.manage(AppState { db: Mutex::new(db) });
 
-            let week = menu_item(app, "nav-week", "Week", Some("CmdOrCtrl+1"))?;
-            let weeks = menu_item(app, "nav-weeks", "Weeks", Some("CmdOrCtrl+2"))?;
-            let config = menu_item(app, "nav-config", "Config", Some("CmdOrCtrl+3"))?;
+            let week = menu_item(app, "nav-week", "Uren", Some("CmdOrCtrl+1"))?;
+            let weeks = menu_item(app, "nav-weeks", "Weken", Some("CmdOrCtrl+2"))?;
+            let config = menu_item(app, "nav-config", "Instellingen", Some("CmdOrCtrl+3"))?;
             let export_view = menu_item(app, "nav-export", "Export", Some("CmdOrCtrl+4"))?;
-            let palette = menu_item(app, "palette", "Command palette…", Some("CmdOrCtrl+K"))?;
-            let prev = menu_item(app, "week-prev", "Previous week", Some("CmdOrCtrl+Left"))?;
-            let next = menu_item(app, "week-next", "Next week", Some("CmdOrCtrl+Right"))?;
+            let palette = menu_item(app, "palette", "Opdrachtpalet…", Some("CmdOrCtrl+K"))?;
+            let prev = menu_item(app, "week-prev", "Vorige week", Some("CmdOrCtrl+Left"))?;
+            let next = menu_item(app, "week-next", "Volgende week", Some("CmdOrCtrl+Right"))?;
             let copy = menu_item(
                 app,
                 "week-copy",
-                "Copy previous week",
+                "Vorige week kopiëren",
                 Some("CmdOrCtrl+Shift+C"),
             )?;
-            let export_file =
-                menu_item(app, "export-save", "Export week JSON…", Some("CmdOrCtrl+E"))?;
-            let theme_system = menu_item(app, "theme-system", "Theme: system", None)?;
-            let theme_light = menu_item(app, "theme-light", "Theme: light", None)?;
-            let theme_dark = menu_item(app, "theme-dark", "Theme: dark", None)?;
+            let export_file = menu_item(
+                app,
+                "export-save",
+                "Exporteer week-JSON…",
+                Some("CmdOrCtrl+E"),
+            )?;
+            let theme_system = menu_item(app, "theme-system", "Thema: systeem", None)?;
+            let theme_light = menu_item(app, "theme-light", "Thema: licht", None)?;
+            let theme_dark = menu_item(app, "theme-dark", "Thema: donker", None)?;
             let sep_file = PredefinedMenuItem::separator(app)?;
             let sep_go = PredefinedMenuItem::separator(app)?;
-            let quit = PredefinedMenuItem::quit(app, Some("Quit PreEBS"))?;
+            let quit = PredefinedMenuItem::quit(app, Some("Stop PreEBS"))?;
 
             let file_menu =
-                Submenu::with_items(app, "File", true, &[&export_file, &sep_file, &quit])?;
+                Submenu::with_items(app, "Bestand", true, &[&export_file, &sep_file, &quit])?;
             let go_menu = Submenu::with_items(
                 app,
-                "Go",
+                "Ga",
                 true,
                 &[&week, &weeks, &config, &export_view, &sep_go, &palette],
             )?;
             let week_menu = Submenu::with_items(app, "Week", true, &[&prev, &next, &copy])?;
             let view_menu = Submenu::with_items(
                 app,
-                "View",
+                "Beeld",
                 true,
                 &[&theme_system, &theme_light, &theme_dark],
             )?;

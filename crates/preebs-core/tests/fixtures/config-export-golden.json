@@ -23,7 +23,7 @@
             "hourTypes": [
               {
                 "id": "default-straight-time",
-                "name": "DICTU Uren - (Straight Time)"
+                "name": "Straight Time"
               }
             ]
           }
@@ -39,7 +39,7 @@
             "hourTypes": [
               {
                 "id": "default-straight-time",
-                "name": "DICTU Uren - (Straight Time)"
+                "name": "Straight Time"
               },
               {
                 "id": "ot-1",
@@ -53,7 +53,7 @@
             "hourTypes": [
               {
                 "id": "default-straight-time",
-                "name": "DICTU Uren - (Straight Time)"
+                "name": "Straight Time"
               }
             ]
           }

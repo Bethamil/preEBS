@@ -1,6 +1,6 @@
 use preebs_core::{
     BookInput, Error, Hours, NoteUpdate, PreEbs, WeekCustomProject, WeekRowInput,
-    DEFAULT_HOUR_TYPE_ID,
+    DEFAULT_HOUR_TYPE_ID, DEFAULT_HOUR_TYPE_NAME,
 };
 
 fn app() -> (tempfile::TempDir, PreEbs) {
@@ -15,7 +15,7 @@ fn seed(app: &mut PreEbs) {
     app.add_task(
         "Alpha Label",
         "Design",
-        &["DICTU Uren - (Straight Time)".into(), "Overtime".into()],
+        &[DEFAULT_HOUR_TYPE_NAME.into(), "Overtime".into()],
         Some("task-design"),
         false,
     )
@@ -400,7 +400,7 @@ fn custom_project_and_week_summary() {
         task_id: "custom-task".into(),
         task_name: "Misc".into(),
         hour_type_id: "custom-ht".into(),
-        hour_type_name: "DICTU Uren - (Straight Time)".into(),
+        hour_type_name: DEFAULT_HOUR_TYPE_NAME.into(),
         hours: [
             Hours::ZERO,
             Hours::ZERO,

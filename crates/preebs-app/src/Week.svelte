@@ -3,24 +3,29 @@
   import HoursCell from "./HoursCell.svelte";
   import { api, errorText } from "./lib/api.js";
   import {
-    DAYS,
     addDays,
+    dayHeading,
+    displayProject,
     formatTotal,
     groupRows,
     halves,
+    iso,
+    isoWeekNumber,
     missingCombos,
     uid,
+    weekSubtitle,
   } from "./lib/format.js";
 
   let {
     weekStart,
     reloadToken,
-    rangeLabel,
     api: bridge = $bindable(null),
     onnotice,
     onshift,
-    ontoday,
+    onexport,
   } = $props();
+
+  const DOTS = ["#4ade80", "#c084fc", "#94a3b8", "#60a5fa", "#fbbf24", "#fb7185"];
 
   let config = $state(null);
   let rows = $state([]);
@@ -30,35 +35,47 @@
   let stale = $state(false);
   let status = $state("");
   let error = $state("");
-  let query = $state("");
   let customName = $state("");
-  let highlight = $state(0);
+  let customOpen = $state(false);
   let loading = $state(true);
+  let menuId = $state(null);
+  let picker = $state(null);
+  let focusDay = $state(-1);
 
   let saveTimer = 0;
   let activeDate = "";
   let request = 0;
   let editVersion = 0;
 
-  let groups = $derived(groupRows(rows, config, customProjects));
-  let flat = $derived(groups.flatMap((group) => group.rows));
-  let combos = $derived(missingCombos(config, rows));
-  let filtered = $derived.by(() => {
-    const needle = query.trim().toLowerCase();
-    const list = needle
-      ? combos.filter((combo) =>
-          `${combo.projectLabel} ${combo.projectName} ${combo.taskName} ${combo.hourTypeName}`
-            .toLowerCase()
-            .includes(needle),
-        )
-      : combos;
-    return list.slice(0, 8);
+  let grouped = $derived(groupRows(rows, config, customProjects));
+  let cards = $derived.by(() => {
+    const seen = new Set(grouped.map((group) => group.id));
+    const extras = [];
+    for (const project of config?.projects ?? []) {
+      if (seen.has(project.id) || !project.tasks?.length) continue;
+      extras.push({
+        id: project.id,
+        name: displayProject(project),
+        configured: true,
+        rows: [],
+      });
+    }
+    return [...grouped, ...extras].map((group, index) => ({
+      ...group,
+      dot: DOTS[index % DOTS.length],
+    }));
   });
+  let flat = $derived(cards.flatMap((group) => group.rows));
+  let combos = $derived(missingCombos(config, rows));
   let maxHours = $derived(config?.maxHoursPerDay ?? [8, 8, 8, 8, 8]);
-  let dayDates = $derived(DAYS.map((_, index) => addDays(weekStart, index)));
-  let dayTotals = $derived(DAYS.map((_, day) => rows.reduce((sum, row) => sum + Number(row.hours[day] || 0), 0)));
+  let dayDates = $derived([0, 1, 2, 3, 4].map((index) => addDays(weekStart, index)));
+  let todayIndex = $derived(dayDates.indexOf(iso(new Date())));
+  let shadeIndex = $derived(todayIndex >= 0 ? todayIndex : focusDay);
+  let dayTotals = $derived([0, 1, 2, 3, 4].map((day) => rows.reduce((sum, row) => sum + Number(row.hours[day] || 0), 0)));
   let weekTotal = $derived(dayTotals.reduce((sum, value) => sum + value, 0));
   let required = $derived(maxHours.reduce((sum, value) => sum + Number(value), 0));
+  let title = $derived(`Week ${isoWeekNumber(weekStart)}`);
+  let subtitle = $derived(weekSubtitle(weekStart));
 
   function payloadRows() {
     return rows.map((row) => ({
@@ -85,7 +102,7 @@
     editVersion += 1;
     dirty = true;
     stale = false;
-    status = "Unsaved";
+    status = "Niet opgeslagen";
     scheduleSave(weekStart, editVersion);
   }
 
@@ -98,18 +115,18 @@
   }
 
   async function persist(date, body, version) {
-    status = "Saving…";
+    status = "Opslaan…";
     try {
       const week = await api.saveWeek(date, body.rows, body.customProjects);
       if (date === activeDate && version === editVersion) {
         applyWeek(week, config);
         dirty = false;
         stale = false;
-        status = "Saved";
+        status = "Alles opgeslagen";
       }
       error = "";
     } catch (caught) {
-      status = "Not saved";
+      status = "Niet opgeslagen";
       error = errorText(caught);
       onnotice(error);
     }
@@ -127,7 +144,7 @@
     config = nextConfig ?? config;
     rows = (week.rows ?? []).map((row) => ({
       ...row,
-      hours: DAYS.map((_, index) => Number(row.hours?.[index] ?? 0)),
+      hours: [0, 1, 2, 3, 4].map((index) => Number(row.hours?.[index] ?? 0)),
       note: row.note ?? "",
     }));
     customProjects = (week.customProjects ?? []).map((project) => ({ ...project }));
@@ -144,18 +161,19 @@
       config = view.config;
       rows = (view.week.rows ?? []).map((row) => ({
         ...row,
-        hours: DAYS.map((_, index) => Number(row.hours?.[index] ?? 0)),
+        hours: [0, 1, 2, 3, 4].map((index) => Number(row.hours?.[index] ?? 0)),
         note: row.note ?? "",
       }));
       customProjects = view.week.customProjects ?? [];
       exists = view.exists;
       dirty = false;
       stale = false;
-      status = view.exists ? "Saved" : "Not saved yet";
+      status = "Alles opgeslagen";
       activeDate = date;
     } catch (caught) {
       if (token !== request) return;
       error = errorText(caught);
+      status = "Niet opgeslagen";
     } finally {
       if (token === request) loading = false;
     }
@@ -171,6 +189,8 @@
           stale = true;
           return;
         }
+        menuId = null;
+        picker = null;
         await load(date);
       })();
     });
@@ -198,6 +218,7 @@
     }
     if (nextRow < 0) nextRow = 0;
     if (nextRow > flat.length - 1) nextRow = Math.max(flat.length - 1, 0);
+    focusDay = nextDay;
     focusCell(nextRow, nextDay);
   }
 
@@ -222,18 +243,60 @@
         note: "",
       },
     ];
-    query = "";
-    highlight = 0;
+    picker = null;
     markDirty();
-    queueMicrotask(() => focusCell(flat.length - 1, 0));
+    queueMicrotask(() => focusCell(Math.max(flat.length - 1, 0), 0));
   }
 
   function addNext() {
+    if (!combos[0]) {
+      onnotice("Alle geconfigureerde regels staan al op deze week.");
+      return;
+    }
     addCombo(combos[0]);
-    if (!combos[0]) onnotice("Every configured line is already on this week.");
   }
 
-  function addCustom() {
+  function optionsFor(projectId) {
+    return combos.filter((combo) => combo.projectId === projectId);
+  }
+
+  function addCustomTask(group) {
+    rows = [
+      ...rows,
+      {
+        id: uid(),
+        projectId: group.id,
+        projectName: group.name,
+        taskId: `custom-task:${uid()}`,
+        taskName: "Taak",
+        hourTypeId: `custom-ht:${uid()}`,
+        hourTypeName: config?.defaultHourTypeName || "Uren",
+        hours: [0, 0, 0, 0, 0],
+        note: "",
+      },
+    ];
+    markDirty();
+  }
+
+  function addRow(group) {
+    const options = optionsFor(group.id);
+    if (options.length === 1) {
+      addCombo(options[0]);
+      return;
+    }
+    if (options.length > 1) {
+      picker = picker === group.id ? null : group.id;
+      menuId = null;
+      return;
+    }
+    if (!group.configured) {
+      addCustomTask(group);
+      return;
+    }
+    onnotice("Alle geconfigureerde regels staan al op deze week.");
+  }
+
+  function addCustomProject() {
     const name = customName.trim().replace(/\s+/g, " ");
     if (!name) return;
     const id = `custom-project:${uid()}`;
@@ -245,25 +308,28 @@
         projectId: id,
         projectName: name,
         taskId: `custom-task:${uid()}`,
-        taskName: "Task",
+        taskName: "Taak",
         hourTypeId: `custom-ht:${uid()}`,
-        hourTypeName: config?.defaultHourTypeName || "Hours",
+        hourTypeName: config?.defaultHourTypeName || "Uren",
         hours: [0, 0, 0, 0, 0],
         note: "",
       },
     ];
     customName = "";
+    customOpen = false;
     markDirty();
   }
 
   function removeRow(row) {
     rows = rows.filter((item) => item.id !== row.id);
+    menuId = null;
     markDirty();
   }
 
   function removeCustom(project) {
     customProjects = customProjects.filter((item) => item.id !== project.id);
     rows = rows.filter((row) => row.projectId !== project.id);
+    menuId = null;
     markDirty();
   }
 
@@ -272,206 +338,229 @@
       if (dirty) await flush();
       await api.copyPrevious(weekStart);
       await load(weekStart);
-      onnotice(`Copied the previous week into ${weekStart}.`);
+      onnotice(`Vorige week gekopieerd naar ${weekStart}.`);
     } catch (caught) {
       onnotice(errorText(caught));
     }
   }
 
-  function projectDayTotal(group, day) {
-    return group.rows.reduce((sum, row) => sum + Number(row.hours[day] || 0), 0);
+  function projectTotal(group) {
+    return group.rows.reduce((sum, row) => sum + row.hours.reduce((inner, value) => inner + Number(value), 0), 0);
+  }
+
+  function rowTotal(row) {
+    return row.hours.reduce((sum, value) => sum + Number(value), 0);
   }
 
   function over(value, max) {
     return halves(value) > halves(max);
   }
 
+  function showType(group, row) {
+    return group.rows.filter((item) => item.taskId === row.taskId).length > 1;
+  }
+
+  function amount(value) {
+    return Number(value) ? formatTotal(value) : "–";
+  }
+
   onMount(() => {
     bridge = { copyPrevious, addNext };
+    const close = (event) => {
+      if (event.key === "Escape") {
+        menuId = null;
+        picker = null;
+      }
+    };
+    window.addEventListener("keydown", close);
     return () => {
       bridge = null;
+      window.removeEventListener("keydown", close);
       void flush();
     };
   });
 </script>
 
 <section class="screen" aria-labelledby="week-title">
-  <div class="toolbar">
-    <div class="week-nav">
-      <button type="button" onclick={() => onshift(-1)} aria-label="Previous week">←</button>
-      <div>
-        <h2 id="week-title">{rangeLabel}</h2>
-        <p>{exists ? "Saved week" : "New week"} · {status}</p>
-      </div>
-      <button type="button" onclick={() => onshift(1)} aria-label="Next week">→</button>
-      <button type="button" onclick={ontoday}>Today</button>
+  <div class="page-head">
+    <div>
+      <h1 id="week-title">{title}</h1>
+      <p class="sub">{subtitle}</p>
     </div>
-    <div class="toolbar-actions">
-      <button type="button" onclick={copyPrevious}>Copy previous</button>
-      <button type="button" onclick={addNext} disabled={!combos.length}>Add next line</button>
+    <div class="head-actions">
+      <button type="button" class="btn" onclick={() => onshift(-1)}>
+        <span aria-hidden="true">‹</span> Vorige week
+      </button>
+      <button type="button" class="btn" onclick={() => onshift(1)}>
+        Volgende week <span aria-hidden="true">›</span>
+      </button>
+      <span class="sep" aria-hidden="true"></span>
+      <button type="button" class="btn" onclick={copyPrevious}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <rect x="8" y="8" width="11" height="11" rx="2" />
+          <path d="M5 15V5h10" stroke-linecap="round" />
+        </svg>
+        Vorige week kopiëren
+      </button>
+      <button type="button" class="btn btn-primary" onclick={onexport}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <path d="M12 16V5M8 8.5 12 4.5 16 8.5" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M5 15.5V18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2.5" stroke-linecap="round" />
+        </svg>
+        Exporteer EBS
+      </button>
     </div>
   </div>
 
   {#if stale}
     <p class="banner" role="status">
-      The database changed in another window.
-      <button type="button" onclick={() => { dirty = false; void load(weekStart); }}>Reload</button>
+      De database is in een ander venster gewijzigd.
+      <button type="button" class="btn" onclick={() => { dirty = false; void load(weekStart); }}>Opnieuw laden</button>
     </p>
   {/if}
   {#if error}
     <p class="banner danger" role="alert">{error}</p>
   {/if}
 
-  <div class="adder">
-    <label>
-      Add a configured line
-      <input
-        bind:value={query}
-        placeholder={combos.length ? "Project, task, or hour type" : "All configured lines are on this week"}
-        aria-autocomplete="list"
-        aria-controls="combo-list"
-        onkeydown={(event) => {
-          if (event.key === "ArrowDown") {
-            highlight = Math.min(highlight + 1, filtered.length - 1);
-            event.preventDefault();
-          } else if (event.key === "ArrowUp") {
-            highlight = Math.max(highlight - 1, 0);
-            event.preventDefault();
-          } else if (event.key === "Enter" && filtered[highlight]) {
-            addCombo(filtered[highlight]);
-            event.preventDefault();
-          }
-        }}
-      />
-    </label>
-    {#if query && filtered.length}
-      <ul id="combo-list" role="listbox">
-        {#each filtered as combo, index (combo.key)}
-          <li>
-            <button type="button" role="option" aria-selected={index === highlight} class:selected={index === highlight} onclick={() => addCombo(combo)}>
-              {combo.projectLabel} / {combo.taskName} / {combo.hourTypeName}
-            </button>
-          </li>
-        {/each}
-      </ul>
-    {/if}
-    <form
-      onsubmit={(event) => {
-        event.preventDefault();
-        addCustom();
-      }}
-    >
-      <label>
-        Custom project
-        <input bind:value={customName} placeholder="Name for this week only" />
-      </label>
-      <button type="submit">Add</button>
-    </form>
-  </div>
-
   {#if loading}
-    <p>Loading week…</p>
-  {:else if flat.length === 0}
-    <p class="empty-week">No lines yet. Add a configured task or a custom project.</p>
+    <p>Week laden…</p>
   {:else}
-    <div class="sheet-wrap">
-      <table class="sheet">
-        <colgroup>
-          <col />
-          {#each DAYS as day (day)}<col class="day-col" />{/each}
-          <col class="total-col" />
-          <col class="action-col" />
-        </colgroup>
-        <thead>
-          <tr>
-            <th scope="col">Project / task</th>
-            {#each DAYS as day, index (day)}
-              <th scope="col" class:warn={over(dayTotals[index], maxHours[index])}>
-                {day}
-                <span class="sub">{dayDates[index].slice(8)}</span>
-                {#if over(dayTotals[index], maxHours[index])}
-                  <span class="sub">{formatTotal(dayTotals[index])} &gt; {formatTotal(maxHours[index])}</span>
-                {/if}
-              </th>
-            {/each}
-            <th scope="col">Total</th>
-            <th scope="col"><span class="sr">Remove</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each groups as group (group.id)}
-            <tr class="group">
-              <th scope="colgroup" colspan="8">{group.name}</th>
-            </tr>
-            {#each group.rows as row (row.id)}
-              {@const index = flat.indexOf(row)}
-              {@const custom = !group.configured}
-              <tr>
-                <th scope="row">
-                  {#if custom}
-                    <input aria-label="Task name" bind:value={row.taskName} oninput={markDirty} />
-                    <input aria-label="Hour type" bind:value={row.hourTypeName} oninput={markDirty} />
-                  {:else}
-                    <span class="name">{row.taskName}</span>
-                    <span class="sub">{row.hourTypeName}</span>
-                  {/if}
-                  <input class="note" aria-label={`Note for ${row.taskName}`} placeholder="Note" bind:value={row.note} oninput={markDirty} />
-                </th>
-                {#each DAYS as day, dayIndex (day)}
-                  <td class:warn={over(row.hours[dayIndex], maxHours[dayIndex])}>
-                    <HoursCell
-                      value={row.hours[dayIndex]}
-                      label={`${row.projectName}, ${row.taskName}, ${row.hourTypeName}, ${day} ${dayDates[dayIndex]}`}
-                      cell={`${index}-${dayIndex}`}
-                      oncommit={(value) => setHours(row, dayIndex, value)}
-                      onmove={(key) => move(index, dayIndex, key)}
-                    />
-                  </td>
-                {/each}
-                <td class="total">{formatTotal(row.hours.reduce((sum, value) => sum + Number(value), 0))}</td>
-                <td>
-                  <button type="button" aria-label={`Remove ${row.taskName}`} onclick={() => removeRow(row)}>×</button>
-                </td>
-              </tr>
-            {/each}
-            <tr class="subtotal">
-              <th scope="row">Project total</th>
-              {#each DAYS as day, dayIndex (day)}
-                {@const total = projectDayTotal(group, dayIndex)}
-                <td class:warn={over(total, maxHours[dayIndex])}>{formatTotal(total)}</td>
-              {/each}
-              <td class="total">{formatTotal(group.rows.reduce((sum, row) => sum + row.hours.reduce((inner, value) => inner + Number(value), 0), 0))}</td>
-              <td>
-                {#if !group.configured}
-                  <button type="button" onclick={() => removeCustom(group)}>Remove</button>
-                {/if}
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-        <tfoot>
-          <tr>
-            <th scope="row">Day total</th>
-            {#each dayTotals as total, index (`day-${index}`)}
-              <td class:warn={over(total, maxHours[index])}>{formatTotal(total)}</td>
-            {/each}
-            <td class="total">{formatTotal(weekTotal)}</td>
-            <td></td>
-          </tr>
-          <tr>
-            <th scope="row">Daily max</th>
-            {#each maxHours as max, index (`max-${index}`)}
-              <td>{formatTotal(max)}</td>
-            {/each}
-            <td class="total">{formatTotal(required)}</td>
-            <td></td>
-          </tr>
-        </tfoot>
-      </table>
+    <div class="cols colhead" aria-hidden="true">
+      <span>Taak</span>
+      {#each dayDates as date, index (date)}
+        <span class:shade={index === shadeIndex} class:over={over(dayTotals[index], maxHours[index])}>{dayHeading(weekStart, index)}</span>
+      {/each}
+      <span style="text-align: right">Totaal</span>
     </div>
-    <p class="week-status" class:warn={halves(weekTotal) > halves(required)} class:ok={halves(weekTotal) === halves(required)}>
-      Week {formatTotal(weekTotal)} / {formatTotal(required)}
-      {#if halves(weekTotal) < halves(required)}under{:else if halves(weekTotal) === halves(required)}match{:else}over{/if}
+
+    {#if cards.length === 0}
+      <p class="sub">Nog geen regels. Voeg een project toe bij Instellingen, of maak een aangepast project voor deze week.</p>
+    {/if}
+
+    {#each cards as group (group.id)}
+      <section class="card project-card" aria-label={group.name}>
+        <div class="cols project-line">
+          <div class="project-name">
+            <span class="dot" style="background: {group.dot}"></span>
+            {group.name}
+          </div>
+          <div class="project-total">{formatTotal(projectTotal(group))} uur</div>
+        </div>
+        {#each group.rows as row (row.id)}
+          {@const index = flat.indexOf(row)}
+          <div class="cols task-line">
+            <div class="task-label">
+              <div style="min-width: 0">
+                <span class="task-name">{row.taskName}</span>
+                {#if showType(group, row)}
+                  <span class="task-meta">{row.hourTypeName}</span>
+                {/if}
+                {#if row.note}
+                  <span class="task-meta">{row.note}</span>
+                {/if}
+              </div>
+              <button
+                type="button"
+                class="more"
+                aria-label={`Opties voor ${row.taskName}`}
+                aria-expanded={menuId === row.id}
+                onclick={() => {
+                  menuId = menuId === row.id ? null : row.id;
+                  picker = null;
+                }}
+              >…</button>
+              {#if menuId === row.id}
+                <div class="menu" role="menu">
+                  {#if !group.configured}
+                    <label>
+                      Taak
+                      <input bind:value={row.taskName} oninput={markDirty} />
+                    </label>
+                    <label>
+                      Uurtype
+                      <input bind:value={row.hourTypeName} oninput={markDirty} />
+                    </label>
+                  {:else}
+                    <p class="task-meta" style="padding: 0.2rem 0.45rem">{row.hourTypeName}</p>
+                  {/if}
+                  <label>
+                    Notitie
+                    <input aria-label={`Notitie voor ${row.taskName}`} bind:value={row.note} oninput={markDirty} />
+                  </label>
+                  <button type="button" class="menu-item menu-danger" role="menuitem" onclick={() => removeRow(row)}>Rij verwijderen</button>
+                  {#if !group.configured && group.rows[0]?.id === row.id}
+                    <button type="button" class="menu-item menu-danger" role="menuitem" onclick={() => removeCustom(group)}>Project verwijderen</button>
+                  {/if}
+                </div>
+              {/if}
+            </div>
+            {#each dayDates as date, dayIndex (date)}
+              <div class="hours-wrap" class:shade={dayIndex === shadeIndex}>
+                <HoursCell
+                  value={row.hours[dayIndex]}
+                  label={`${row.projectName}, ${row.taskName}, ${row.hourTypeName}, ${dayHeading(weekStart, dayIndex)}`}
+                  cell={`${index}-${dayIndex}`}
+                  oncommit={(value) => setHours(row, dayIndex, value)}
+                  onmove={(key) => move(index, dayIndex, key)}
+                  onfocus={() => (focusDay = dayIndex)}
+                />
+              </div>
+            {/each}
+            <div class="row-total" class:zero={!rowTotal(row)}>{amount(rowTotal(row))}</div>
+          </div>
+        {/each}
+        <div class="add-slot">
+          <button type="button" class="add-row" onclick={() => addRow(group)}>
+            <span aria-hidden="true">+</span> Rij toevoegen
+          </button>
+          {#if picker === group.id}
+            <div class="picker" role="listbox" aria-label="Regel kiezen">
+              {#each optionsFor(group.id) as combo (combo.key)}
+                <button type="button" onclick={() => addCombo(combo)}>
+                  {combo.taskName} · {combo.hourTypeName}
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      </section>
+    {/each}
+
+    {#if customOpen}
+      <form
+        class="custom-add"
+        onsubmit={(event) => {
+          event.preventDefault();
+          addCustomProject();
+        }}
+      >
+        <input bind:value={customName} placeholder="Naam voor deze week" aria-label="Aangepast project" />
+        <button type="submit" class="btn">Toevoegen</button>
+      </form>
+    {:else}
+      <button type="button" class="add-row" onclick={() => (customOpen = true)}>+ Aangepast project</button>
+    {/if}
+
+    <section class="card project-card" aria-label="Totaal per dag">
+      <div class="cols">
+        <div class="totals-label">Totaal per dag</div>
+        {#each dayTotals as total, index (`total-${index}`)}
+          <div class="day-total" class:shade={index === shadeIndex} class:over={over(total, maxHours[index])} class:zero={!total}>
+            {amount(total)}
+          </div>
+        {/each}
+        <div class="week-total">{formatTotal(weekTotal)} / {formatTotal(required)} uur</div>
+      </div>
+    </section>
+
+    <p class="save-line" class:warn={dirty && !error} class:bad={Boolean(error)} role="status">
+      {#if !dirty && !error}
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" />
+          <path d="m8 12.2 2.4 2.4L16.2 9" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      {/if}
+      {error && status === "Niet opgeslagen" ? "Niet opgeslagen" : status || (exists ? "Alles opgeslagen" : "Alles opgeslagen")}
     </p>
   {/if}
 </section>

@@ -24,10 +24,10 @@
   });
 
   async function remove(week) {
-    if (!confirm(`Delete the week of ${week.weekStartDate}?`)) return;
+    if (!confirm(`Week van ${week.weekStartDate} verwijderen?`)) return;
     try {
       await api.deleteWeek(week.weekStartDate);
-      onnotice(`Deleted ${week.weekStartDate}.`);
+      onnotice(`${week.weekStartDate} verwijderd.`);
       await load();
     } catch (caught) {
       onnotice(errorText(caught));
@@ -36,19 +36,19 @@
 </script>
 
 <section class="screen" aria-labelledby="weeks-title">
-  <div class="toolbar">
+  <div class="page-head">
     <div>
-      <h2 id="weeks-title">Weeks</h2>
-      <p>Newest Monday first. Status compares the week total with the daily maxima.</p>
+      <h1 id="weeks-title">Weken</h1>
+      <p class="sub">Nieuwste maandag eerst. De status vergelijkt het weektotaal met de dagmaxima.</p>
     </div>
   </div>
   <label>
-    Search weeks
-    <input bind:value={query} placeholder="Date, project, task, or hour type" />
+    Weken zoeken
+    <input bind:value={query} placeholder="Datum, project, taak of uurtype" />
   </label>
   {#if error}<p class="banner danger" role="alert">{error}</p>{/if}
   {#if weeks.length === 0}
-    <p>No saved weeks.</p>
+    <p>Geen opgeslagen weken.</p>
   {:else}
     <ul class="week-list">
       {#each weeks as week (week.weekStartDate)}
@@ -58,12 +58,12 @@
             <span class="sub">{week.weekStartDate}</span>
           </div>
           <span class="pill {week.hoursStatus}">
-            {formatTotal(week.totalHours)} / {formatTotal(week.requiredHours)} {week.hoursStatus}
+            {formatTotal(week.totalHours)} / {formatTotal(week.requiredHours)} {week.hoursStatus === "match" ? "gelijk" : week.hoursStatus === "over" ? "over" : "onder"}
           </span>
           <div class="row-actions">
             <button type="button" onclick={() => onopen(week.weekStartDate)}>Open</button>
-            <button type="button" onclick={() => onexport(week.weekStartDate)}>Export</button>
-            <button type="button" onclick={() => remove(week)}>Delete</button>
+            <button type="button" onclick={() => onexport(week.weekStartDate)}>Exporteer</button>
+            <button type="button" onclick={() => remove(week)}>Verwijder</button>
           </div>
         </li>
       {/each}

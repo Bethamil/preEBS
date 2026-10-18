@@ -12,7 +12,7 @@ Leptos was the other serious option (one language, no JS toolchain). It loses he
 
 - The week grid, command palette, focus management, and system theme are ordinary DOM work. Svelte does that with little code and no virtual-DOM tax. A Leptos grid of 150 cells (3 projects × 10 tasks × 5 days) is fine, but the keyboard and accessibility behavior is slower to get right.
 - The shipping bundle has to stay under 20 MB. Tauri already uses the system webview, so the Rust binary plus a few dozen kilobytes of Svelte is the whole app. A WASM UI would add a second compiled artifact and a second layout engine to debug.
-- Tauri’s Svelte/Vite path is the one its tooling expects (`beforeBuildCommand`, dev server on port 1420). That keeps CI boring on macOS, Windows, and Linux.
+- Tauri’s Svelte/Vite path is the one its tooling expects (`beforeBuildCommand`, dev server on port 1420). That keeps CI boring on macOS and Linux.
 
 No Next.js, no React, no component library. CSS is plain, using the existing PreEBS palette.
 
@@ -33,7 +33,7 @@ firefox-extension/                  unchanged
 
 `crates/preebs-app/src-tauri` is the Cargo package `preebs-app`. Nesting it is the Tauri v2 layout (`package.json` beside `src-tauri/`) so `tauri build` works without a custom project path. Both binaries link `preebs-core` and open the same database file. The toolchain is Rust 1.90, which is what Tauri 2.12 requires.
 
-Release profile: size-oriented (`opt-level = "s"`, thin LTO, stripped) so the `.app` stays under 20 MB. SQLite is bundled inside the binary (`rusqlite` `bundled`) so Windows and macOS do not need a system SQLite.
+Release profile: size-oriented (`opt-level = "s"`, thin LTO, stripped) so the `.app` stays under 20 MB. SQLite is bundled inside the binary (`rusqlite` `bundled`) so macOS does not need a system SQLite. Linux and macOS are the supported platforms.
 
 ## Storage
 
@@ -42,7 +42,6 @@ SQLite in WAL mode, `busy_timeout` 5s, foreign keys on.
 | Platform | Directory | File |
 | --- | --- | --- |
 | macOS | `~/Library/Application Support/PreEBS/` | `preebs.sqlite` |
-| Windows | `%APPDATA%\PreEBS\` | `preebs.sqlite` |
 | Linux | `$XDG_DATA_HOME/PreEBS/` or `~/.local/share/PreEBS/` | `preebs.sqlite` |
 
 Overrides, matching the old env names:
@@ -57,7 +56,7 @@ The old Electron files are left in place and are not the live database:
 - Packaged app: `~/Library/Application Support/PreEBS/preebs-db.json` (and the lowercase `preebs` folder the old CLI probed)
 - Dev desktop: `~/.preebs-desktop/preebs-db.json`
 - Repo: `data/preebs-db.json`
-- Windows/Linux equivalent under the `PreEBS` data dir
+- Linux equivalent under the `PreEBS` data dir
 
 `preebs migrate --from <file>` imports one JSON database. Without `--from`, the command tries those paths and uses the first that exists. `--dry-run` reports counts and writes nothing. Re-running is safe: config is replaced by the source config, weeks present in the file are upserted by id, weeks that exist only in SQLite are left alone. The JSON file is never deleted.
 
@@ -71,7 +70,7 @@ Single local user. `userId` stays `"local-user"`, `name` stays `"Local User"`.
 UserConfig
   userId: string
   maxHoursPerDay: Hours[5]          # Mon..Fri
-  defaultHourTypeName: string       # NEW. Default "DICTU Uren - (Straight Time)"
+  defaultHourTypeName: string       # NEW. Default "Straight Time"
   projects: Project[]
   updatedAt: ISO-8601
 
@@ -90,11 +89,11 @@ HourType
 Constants kept compatible with stored data:
 
 - `DEFAULT_HOUR_TYPE_ID = "default-straight-time"`
-- `DEFAULT_HOUR_TYPE_NAME = "DICTU Uren - (Straight Time)"`
+- `DEFAULT_HOUR_TYPE_NAME = "Straight Time"`
 - `DEFAULT_MAX_HOURS_PER_DAY = 8`
 - `WEEKDAY_COUNT = 5`
 
-New tasks with no hour types get one hour type named `defaultHourTypeName`. When that name equals the historical default (case-insensitive, whitespace-collapsed), the id is `default-straight-time`. Otherwise the id is a new UUID. Changing the default later does not rewrite existing tasks.
+New tasks with no hour types get one hour type named `defaultHourTypeName`. When that name equals `Straight Time` (case-insensitive, whitespace-collapsed), the id is `default-straight-time`. Otherwise the id is a new UUID. Changing the default later does not rewrite existing tasks. Names already stored on tasks, including older defaults, are user data and are left as imported.
 
 Names are `trim` + internal whitespace collapsed to a single space (`safeTrim`). Empty names are dropped. Empty labels and notes are stored as absent, not `""`.
 
@@ -200,7 +199,7 @@ Default export path: `./preebs-{monday}.json`. Config export default: `./preebs-
 These are called out so parity review does not treat them as accidents.
 
 1. **Hour types are not collapsed.** `normalizeConfig` and the config screen kept a single hour type per task, preferring a name other than the historical default. The new CLI has `hour-type add|edit|rm`, and booking already distinguished “exactly one” from “several”, so the Rust core stores every hour type. Empty lists still receive the default hour type. Migration does not invent or drop hour types that are present in the JSON.
-2. **`defaultHourTypeName` is new** on `UserConfig`. Config files from the TypeScript app omit it and import as the historical name. Exported config (still `type: "preebs-config"`, `version: 1`) includes the field. The old parser ignored unknown fields, so an old build would still read projects and max hours.
+2. **`defaultHourTypeName` is new** on `UserConfig`. Config files from the TypeScript app omit it and import as `Straight Time`. Exported config (still `type: "preebs-config"`, `version: 1`) includes the field. The old parser ignored unknown fields, so an old build would still read projects and max hours. Hour-type names already in a file are kept as user data.
 3. **Reads do not bump `updatedAt`.** `getConfig` ran `normalizeConfig`, which set `updatedAt` to now in the response without saving. Rust returns the stored timestamp.
 4. **`week show` adds `exists`.** The HTTP API always returned a synthetic empty week, so a missing week and an empty saved week looked the same. JSON now includes `"exists": false` plus that same empty document.
 5. **Names are accepted as well as ids**, case-insensitive, only when one entity matches. Project labels count as names. Ambiguous input is an error (exit 5), never a guess. Ids win over names.
@@ -276,7 +275,7 @@ UX bar:
 - No horizontal scrolling at the 980px minimum. Day columns are fixed width; the name column flexes.
 - Light and dark follow the system, with an explicit override.
 - Focus rings, associated labels, contrast from the existing palette (accent green on near-white / near-black, warning and danger tokens kept).
-- macOS `.app` and `.dmg` are produced unsigned but with a real bundle id `com.preebs.desktop` and `LSMinimumSystemVersion` 11.0, so a signing identity can be applied without a rebuild of the UI. CI also builds a Windows NSIS installer and a Linux deb.
+- macOS `.app` and `.dmg` are produced unsigned but with a real bundle id `com.preebs.desktop` and `LSMinimumSystemVersion` 11.0, so a signing identity can be applied without a rebuild of the UI. CI also builds a Linux deb. Windows installers are not built.
 
 Shortcuts: Cmd/Ctrl-K palette, Cmd/Ctrl-1/2/3/4 for Week/Weeks/Config/Export, Cmd/Ctrl-Left/Right previous/next week, Cmd/Ctrl-E export, Cmd/Ctrl-Shift-C copy previous week.
 
@@ -298,7 +297,7 @@ Export and config transfer are checked against golden files produced by running 
 - [x] Week search and summary status
 - [x] Golden week export, exact pretty JSON
 - [x] Config export/import roundtrip, including rejection of bad type/version and skipping empty names
-- [x] `defaultHourTypeName` roundtrips; missing field defaults to the historical name; new tasks receive `default-straight-time` when the name matches
+- [x] `defaultHourTypeName` roundtrips; missing field defaults to `Straight Time`; new tasks receive `default-straight-time` when the name matches
 - [x] Multiple hour types survive save (the TS collapse is gone)
 - [x] Migrate is idempotent and `--dry-run` does not create a database write
 - [x] Export refuses to overwrite
@@ -311,7 +310,7 @@ Export and config transfer are checked against golden files produced by running 
 - `cargo fmt --check`
 - `cargo clippy --workspace --all-targets -- -D warnings`
 - `cargo test --workspace` (unit tests in core, golden/export/config/migrate integration tests, CLI tests via `assert_cmd`)
-- GitHub Actions on `ubuntu-latest`, `macos-latest`, `windows-latest`: fmt, clippy, test, then a Tauri bundle (deb / app+dmg / nsis). Linux image installs WebKitGTK 4.1.
+- GitHub Actions on `ubuntu-latest` and `macos-latest`: fmt, clippy, test, then a Tauri bundle (deb / app+dmg). Linux image installs WebKitGTK 4.1. A tag `vX.Y.Z` publishes a GitHub Release; see `docs/releasing.md`.
 
 ## Out of scope
 

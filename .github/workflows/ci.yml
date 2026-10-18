@@ -2,6 +2,8 @@ name: CI
 
 on:
   push:
+    branches:
+      - "**"
   pull_request:
 
 env:
@@ -15,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.90.0
@@ -50,8 +52,6 @@ jobs:
             bundles: deb
           - os: macos-latest
             bundles: app,dmg
-          - os: windows-latest
-            bundles: nsis
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.90.0
@@ -68,6 +68,10 @@ jobs:
       - name: Install frontend dependencies
         working-directory: crates/preebs-app
         run: npm ci
+      - name: Stage CLI sidecar
+        run: |
+          cargo build --release -p preebs-cli
+          bash crates/preebs-app/scripts/stage-cli.sh
       - name: Tauri bundle
         working-directory: crates/preebs-app
         run: npx tauri build --bundles ${{ matrix.bundles }}

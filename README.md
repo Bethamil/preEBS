@@ -14,7 +14,16 @@ npm install
 npm run tauri dev
 ```
 
-A release bundle (macOS `.app` and `.dmg`, Windows NSIS, or Linux `.deb`):
+Install the unsigned macOS app and the `preebs` CLI with Homebrew:
+
+```bash
+brew tap Bethamil/preebs
+brew install --cask preebs
+```
+
+The cask installs `PreEBS.app` and links the `preebs` binary that is bundled inside the app. See [docs/releasing.md](docs/releasing.md) for tags and the tap.
+
+A local bundle (macOS `.app` / `.dmg`, or Linux `.deb`):
 
 ```bash
 cd crates/preebs-app
@@ -22,17 +31,16 @@ npm install
 npx tauri build
 ```
 
-The macOS bundle id is `com.preebs.desktop`, the minimum system version is 11, and CI leaves the app unsigned (`signingIdentity` is `-`). Set a real Apple signing identity when you are ready to sign; the UI does not need another build for that.
+PreEBS ships for macOS and Linux. The macOS bundle id is `com.preebs.desktop`, the minimum system version is 11, and CI leaves the app unsigned (`signingIdentity` is `-`). Set a real Apple signing identity when you are ready to sign; the UI does not need another build for that.
 
 The database lives in the platform app-support directory:
 
 - macOS: `~/Library/Application Support/PreEBS/preebs.sqlite`
-- Windows: `%APPDATA%\PreEBS\preebs.sqlite`
 - Linux: `$XDG_DATA_HOME/PreEBS/preebs.sqlite` or `~/.local/share/PreEBS/preebs.sqlite`
 
 `--db` / `PREEBS_DB_PATH` and `--data-dir` / `PREEBS_DATA_DIR` override that. The app follows `PREEBS_DB_PATH` and `PREEBS_DATA_DIR` the same way.
 
-Keyboard: arrow keys move between hour cells, Enter moves down, Tab follows the page. Cmd/Ctrl-K opens the command palette. Cmd/Ctrl-1/2/3/4 switch Week, Weeks, Config, and Export. Cmd/Ctrl-Left/Right change week. Cmd/Ctrl-E opens export. Cmd/Ctrl-Shift-C copies the previous week. The same actions are on the native menu.
+The app UI is Dutch: Uren, Weken, and Instellingen. Keyboard: arrow keys move between hour cells, Enter moves down, Tab follows the page. Cmd/Ctrl-K opens the command palette. Cmd/Ctrl-1/2/3/4 switch Uren, Weken, Instellingen, and Export. Cmd/Ctrl-Left/Right change week. Cmd/Ctrl-E opens export. Cmd/Ctrl-Shift-C copies the previous week. The same actions are on the native menu.
 
 ## CLI
 
@@ -63,7 +71,7 @@ npx skills add Bethamil/preEBS --skill preebs
 
 ## Config
 
-The config screen edits projects, tasks, hour types, the default hour type for new tasks, and the five daily maxima. Config files are still `preebs-config` version 1. Export and import are on that screen and on the CLI (`preebs config export`, `preebs config import`). Old files without `defaultHourTypeName` import as `DICTU Uren - (Straight Time)`.
+The config screen edits projects, tasks, hour types, the default hour type for new tasks, and the five daily maxima. Config files are still `preebs-config` version 1. Export and import are on that screen and on the CLI (`preebs config export`, `preebs config import`). Old files without `defaultHourTypeName` import as `Straight Time`.
 
 ## Browser extensions
 

@@ -1,6 +1,20 @@
-export const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
-export const HISTORICAL_HOUR_TYPE = "DICTU Uren - (Straight Time)";
-export const HISTORICAL_HOUR_TYPE_ID = "default-straight-time";
+export const DAYS = ["Ma", "Di", "Wo", "Do", "Vr"];
+export const DEFAULT_HOUR_TYPE_NAME = "Straight Time";
+export const DEFAULT_HOUR_TYPE_ID = "default-straight-time";
+const MONTHS = [
+  "januari",
+  "februari",
+  "maart",
+  "april",
+  "mei",
+  "juni",
+  "juli",
+  "augustus",
+  "september",
+  "oktober",
+  "november",
+  "december",
+];
 
 export function iso(date) {
   const year = date.getFullYear();
@@ -33,13 +47,33 @@ export function shiftWeek(value, weeks) {
 }
 
 export function weekRange(start) {
-  const format = (value) =>
-    parseIso(value).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  return `${format(start)} - ${format(addDays(start, 4))}`;
+  return weekSubtitle(start);
+}
+
+export function isoWeekNumber(monday) {
+  const date = parseIso(monday);
+  const utc = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = utc.getUTCDay() || 7;
+  utc.setUTCDate(utc.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
+  return Math.ceil(((utc - yearStart) / 86400000 + 1) / 7);
+}
+
+export function weekSubtitle(start) {
+  const left = parseIso(start);
+  const right = parseIso(addDays(start, 4));
+  const sameMonth = left.getMonth() === right.getMonth() && left.getFullYear() === right.getFullYear();
+  if (sameMonth) {
+    return `${left.getDate()}–${right.getDate()} ${MONTHS[left.getMonth()]} ${left.getFullYear()}`;
+  }
+  if (left.getFullYear() === right.getFullYear()) {
+    return `${left.getDate()} ${MONTHS[left.getMonth()]} – ${right.getDate()} ${MONTHS[right.getMonth()]} ${right.getFullYear()}`;
+  }
+  return `${left.getDate()} ${MONTHS[left.getMonth()]} ${left.getFullYear()} – ${right.getDate()} ${MONTHS[right.getMonth()]} ${right.getFullYear()}`;
+}
+
+export function dayHeading(start, index) {
+  return `${DAYS[index]} ${parseIso(addDays(start, index)).getDate()}`;
 }
 
 export function formatHours(value) {
@@ -87,10 +121,10 @@ export function collapse(value) {
 export function newHourType(name, existing = []) {
   const trimmed = collapse(name);
   if (
-    trimmed.toLowerCase() === HISTORICAL_HOUR_TYPE.toLowerCase() &&
-    !existing.some((item) => item.id === HISTORICAL_HOUR_TYPE_ID)
+    trimmed.toLowerCase() === DEFAULT_HOUR_TYPE_NAME.toLowerCase() &&
+    !existing.some((item) => item.id === DEFAULT_HOUR_TYPE_ID)
   ) {
-    return { id: HISTORICAL_HOUR_TYPE_ID, name: HISTORICAL_HOUR_TYPE };
+    return { id: DEFAULT_HOUR_TYPE_ID, name: trimmed };
   }
   return { id: uid(), name: trimmed };
 }

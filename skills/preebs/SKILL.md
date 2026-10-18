@@ -94,7 +94,7 @@ Exit codes: `0` ok, `1` unexpected, `2` validation or usage, `3` not found, `4` 
 ## Config transfer and migration
 
 - `preebs config export` writes `preebs-config` version 1. It includes `defaultHourTypeName`. It does not overwrite.
-- `preebs config import <file>` replaces config and keeps weeks. Old files without `defaultHourTypeName` import as `DICTU Uren - (Straight Time)`.
+- `preebs config import <file>` replaces config and keeps weeks. Old files without `defaultHourTypeName` import as `Straight Time`. A file that already names an hour type keeps that name; it is user data.
 - `preebs migrate` copies a legacy `preebs-db.json` once. It is safe to run again. Config is replaced. Weeks in the file are upserted. Other SQLite weeks stay. The JSON file is not deleted.
 
 Changing the default hour type does not rename hour types already stored on tasks.

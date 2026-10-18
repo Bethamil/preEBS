@@ -27,7 +27,8 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg", "nsis", "deb"],
+    "targets": ["app", "dmg", "deb", "appimage"],
+    "externalBin": ["binaries/preebs-cli"],
     "category": "Productivity",
     "icon": [
       "icons/32x32.png",
