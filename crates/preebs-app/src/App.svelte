@@ -1,6 +1,8 @@
 <script>
   import { onMount } from "svelte";
+  import { getVersion } from "@tauri-apps/api/app";
   import { listen } from "@tauri-apps/api/event";
+  import appIcon from "../src-tauri/icons/128x128.png";
   import WeekScreen from "./Week.svelte";
   import WeeksScreen from "./Weeks.svelte";
   import ConfigScreen from "./Config.svelte";
@@ -20,6 +22,7 @@
   let revision = $state(0);
   let reloadToken = $state(0);
   let weekApi = $state(null);
+  let appVersion = $state("");
 
   const views = [
     { id: "week", label: "Uren", shortcut: "1" },
@@ -216,6 +219,11 @@
           revision = info.revision;
         })
         .catch((error) => flash(errorText(error)));
+      getVersion()
+        .then((version) => {
+          appVersion = version;
+        })
+        .catch(() => {});
       timer = window.setInterval(() => {
         api
           .revision()
@@ -266,6 +274,10 @@
         <span>Instellingen</span>
       </button>
     </nav>
+    <p class="sidebar-mark">
+      <img src={appIcon} alt="" width="20" height="20" />
+      {#if appVersion}<span>{appVersion}</span>{/if}
+    </p>
   </aside>
 
   <div class="workspace">
