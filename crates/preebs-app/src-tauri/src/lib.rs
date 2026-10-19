@@ -5,8 +5,8 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use preebs_core::{
-    to_pretty_json, write_new_file, Hours, MigrateReport, PreEbs, UserConfig, WeekCustomProject,
-    WeekDocument, WeekRowInput, WeekSummary, WeekView,
+    to_pretty_json, write_new_file, Hours, MigrateReport, PreEbs, Task, UserConfig,
+    WeekCustomProject, WeekDocument, WeekRowInput, WeekSummary, WeekView,
 };
 use serde::Serialize;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
@@ -62,6 +62,11 @@ fn get_config(state: State<'_, AppState>) -> Result<UserConfig, String> {
 #[tauri::command]
 fn save_config(state: State<'_, AppState>, config: UserConfig) -> Result<UserConfig, String> {
     with_app(&state, |app| app.save_config(config, false))
+}
+
+#[tauri::command]
+fn remove_task(state: State<'_, AppState>, id: String) -> Result<Task, String> {
+    with_app(&state, |app| app.remove_task(&id, false))
 }
 
 #[tauri::command]
@@ -238,6 +243,7 @@ pub fn run() {
             revision,
             get_config,
             save_config,
+            remove_task,
             set_settings,
             week_view,
             save_week,

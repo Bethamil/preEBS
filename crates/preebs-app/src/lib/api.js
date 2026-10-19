@@ -9,6 +9,7 @@ export const api = {
   revision: () => invoke("revision"),
   getConfig: () => invoke("get_config"),
   saveConfig: (config) => invoke("save_config", { config }),
+  removeTask: (id) => invoke("remove_task", { id }),
   setSettings: (maxHours, defaultHourTypeName) =>
     invoke("set_settings", { maxHours, defaultHourTypeName }),
   weekView: (date) => invoke("week_view", { date }),

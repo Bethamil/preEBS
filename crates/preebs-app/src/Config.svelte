@@ -15,12 +15,16 @@
   let menuOpen = $state(false);
   let editor = $state(null);
   let editorError = $state("");
+  let confirmDelete = $state(false);
+  let confirmError = $state("");
+  let removing = $state(false);
   let error = $state("");
   let status = $state("Alles opgeslagen");
   let dirty = $state(false);
 
   let saveTimer = 0;
   let editVersion = 0;
+  let saveChain = Promise.resolve();
   let nameInput = $state(null);
 
   let visibleProjects = $derived.by(() => {
@@ -42,6 +46,12 @@
   });
 
   let selected = $derived(config?.projects?.find((project) => project.id === selectedId) ?? null);
+
+  let confirmText = $derived.by(() => {
+    const task = selected?.tasks?.find((item) => item.id === editor?.taskId);
+    const name = displayTask(task, editor?.name || "");
+    return `${name} verdwijnt uit de configuratie. Uren die al op deze taak in weken zijn geboekt blijven staan.`;
+  });
 
   let hourChoices = $derived.by(() => {
     const names = [];
@@ -103,25 +113,35 @@
     dirty = true;
     status = "Niet opgeslagen";
     window.clearTimeout(saveTimer);
-    saveTimer = window.setTimeout(() => void persist(version), 450);
+    saveTimer = window.setTimeout(() => {
+      void persist(version);
+    }, 450);
   }
 
   async function persist(version) {
-    if (!config) return;
+    if (!config) return false;
     const body = JSON.parse(JSON.stringify(config));
     status = "Opslaan…";
-    try {
-      const saved = await api.saveConfig(body);
-      if (version === editVersion) {
-        config = saved;
-        dirty = false;
-        status = "Alles opgeslagen";
-        error = "";
+    const flight = saveChain.then(async () => {
+      try {
+        const saved = await api.saveConfig(body);
+        if (version === editVersion) {
+          config = saved;
+          dirty = false;
+          status = "Alles opgeslagen";
+          error = "";
+        }
+        return true;
+      } catch (caught) {
+        if (version === editVersion) {
+          status = "Niet opgeslagen";
+          error = errorText(caught);
+        }
+        return false;
       }
-    } catch (caught) {
-      status = "Niet opgeslagen";
-      error = errorText(caught);
-    }
+    });
+    saveChain = flight.then(() => {}, () => {});
+    return flight;
   }
 
   function addProject() {
@@ -169,6 +189,8 @@
   function openEditor(task = null) {
     const hour = task?.hourTypes?.[0];
     editorError = "";
+    confirmDelete = false;
+    confirmError = "";
     editor = {
       taskId: task?.id ?? null,
       name: task?.name ?? "",
@@ -218,7 +240,46 @@
     }
     config.projects = config.projects;
     editor = null;
+    confirmDelete = false;
     markDirty();
+  }
+
+  function closeEditor() {
+    editor = null;
+    confirmDelete = false;
+    confirmError = "";
+    editorError = "";
+  }
+
+  async function removeCurrentTask() {
+    if (!editor?.taskId || removing) return;
+    const id = editor.taskId;
+    removing = true;
+    confirmError = "";
+    window.clearTimeout(saveTimer);
+    editVersion += 1;
+    const version = editVersion;
+    try {
+      await saveChain;
+      if (dirty) {
+        const saved = await persist(version);
+        if (!saved) {
+          confirmError = error || "Opslaan mislukt. De taak is niet verwijderd.";
+          return;
+        }
+      }
+      await api.removeTask(id);
+      editor = null;
+      confirmDelete = false;
+      dirty = false;
+      status = "Alles opgeslagen";
+      error = "";
+      await load();
+    } catch (caught) {
+      confirmError = errorText(caught);
+    } finally {
+      removing = false;
+    }
   }
 
   function setMax(index, raw) {
@@ -478,7 +539,7 @@
 
 {#if editor}
   <div class="modal-backdrop">
-    <button type="button" class="backdrop-dismiss" aria-label="Annuleren" onclick={() => (editor = null)}></button>
+    <button type="button" class="backdrop-dismiss" aria-label="Annuleren" onclick={closeEditor}></button>
     <form
       class="modal"
       role="dialog"
@@ -486,12 +547,13 @@
       aria-labelledby="task-dialog-title"
       onsubmit={(event) => {
         event.preventDefault();
+        if (confirmDelete) return;
         commitEditor();
       }}
     >
       <div class="panel-title">
         <h2 id="task-dialog-title">{editor.taskId ? "Taak bewerken" : "Taak toevoegen"}</h2>
-        <button type="button" class="icon-btn" aria-label="Sluiten" onclick={() => (editor = null)}>×</button>
+        <button type="button" class="icon-btn" aria-label="Sluiten" onclick={closeEditor}>×</button>
       </div>
       <label>
         Taaknaam in EBS
@@ -519,10 +581,28 @@
       </label>
       {#if editorError}<p class="banner danger" role="alert">{editorError}</p>{/if}
       <div class="modal-actions">
-        <button type="button" class="btn" onclick={() => (editor = null)}>Annuleren</button>
+        {#if editor.taskId}
+          <button type="button" class="btn btn-danger" onclick={() => { confirmError = ""; confirmDelete = true; }}>Taak verwijderen</button>
+        {/if}
+        <button type="button" class="btn" onclick={closeEditor}>Annuleren</button>
         <button type="submit" class="btn btn-primary">Opslaan</button>
       </div>
     </form>
+  </div>
+{/if}
+
+{#if confirmDelete && editor?.taskId}
+  <div class="modal-backdrop confirm-layer">
+    <button type="button" class="backdrop-dismiss" aria-label="Annuleren" onclick={() => (confirmDelete = false)}></button>
+    <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-dialog-title" aria-describedby="delete-dialog-body">
+      <h2 id="delete-dialog-title">Taak verwijderen</h2>
+      <p id="delete-dialog-body">{confirmText}</p>
+      {#if confirmError}<p class="banner danger" role="alert">{confirmError}</p>{/if}
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick={() => (confirmDelete = false)} disabled={removing}>Annuleren</button>
+        <button type="button" class="btn btn-danger" onclick={removeCurrentTask} disabled={removing}>Verwijderen</button>
+      </div>
+    </div>
   </div>
 {/if}
 </section>
