@@ -1,0 +1,19 @@
+[package]
+name = "preebs-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "PreEBS domain logic, week export, and SQLite storage"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+rusqlite.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+dirs.workspace = true
+
+[dev-dependencies]
+tempfile = "=3.13.0"

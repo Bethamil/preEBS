@@ -1,0 +1,21 @@
+[package]
+name = "preebs-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "PreEBS command line"
+
+[[bin]]
+name = "preebs"
+path = "src/main.rs"
+
+[dependencies]
+preebs-core = { path = "../preebs-core" }
+clap.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+assert_cmd = "=2.0.16"
+predicates = "=3.1.2"
+tempfile = "=3.13.0"

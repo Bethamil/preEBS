@@ -1,152 +1,99 @@
 # PreEBS
 
-![PreEBS logo](public/logo.png)
+![PreEBS logo](crates/preebs-app/public/logo.png)
 
-Enter your hours in PreEBS, then import them into EBS with the included Chrome or Firefox extension.
+Enter Monday–Friday hours in PreEBS, export JSON, then import that JSON into EBS with the Chrome or Firefox extension.
 
-## Workflow
+The desktop app and the `preebs` CLI share one SQLite database. Nothing has to be running for the CLI to work.
 
-1. Configure projects/tasks in `/config` (EBS name + optional human label).
-2. Enter hours in `/week/[weekStartDate]`.
-3. Export JSON from PreEBS. Hours use a comma (`"8,5"`).
-4. Import JSON into EBS with the browser extension.
-
-## Config import/export
-
-In `/config`:
-
-1. Click **Export Config** to download `preebs-config-YYYY-MM-DD.json`.
-2. Click **Import Config** and select that file to replace the current configuration.
-
-## CLI for AI agents
-
-PreEBS includes a dependency-free CLI for inspecting configuration and booking hours. The web or desktop server must be running.
-
-Run it from this repository:
+## Desktop app
 
 ```bash
-npm run cli -- config
-npm run cli -- weeks
-npm run cli -- week --date 2026-09-25
-npm run cli -- export --date 2026-09-25
-npm run cli -- book --date 2026-09-25 --project PROJECT_ID --task TASK_ID --hours 7.5
+cd crates/preebs-app
+npm install
+npm run tauri dev
 ```
 
-Install the `preebs` command globally from a local checkout:
+Install the unsigned macOS app and the `preebs` CLI with Homebrew:
 
 ```bash
-npm link
-preebs config
+brew tap Bethamil/preebs https://github.com/Bethamil/preEBS.git
+brew install --cask Bethamil/preebs/preebs
 ```
 
-The CLI automatically connects to a running PreEBS desktop app. Otherwise it uses `http://localhost:3000` by default. Set `PREEBS_URL`, or pass `--url`, when PreEBS runs elsewhere:
+The cask installs `PreEBS.app` and links the `preebs` binary that is bundled inside the app. See [docs/releasing.md](docs/releasing.md) for tags and the tap.
+
+A local bundle (macOS `.app` / `.dmg`, or Linux `.deb`):
 
 ```bash
-PREEBS_URL=http://localhost:43117 preebs config
+cd crates/preebs-app
+npm install
+npx tauri build
 ```
 
-`book` sets the hours for one date and project/task/hour-type combination rather than adding to them, making retries safe. It validates configured IDs, weekdays, half-hour increments, and the configured maximum hours per day. The hour type can be omitted when the task has exactly one.
+PreEBS ships for macOS and Linux. The macOS bundle id is `com.preebs.desktop`, the minimum system version is 11, and CI leaves the app unsigned (`signingIdentity` is `-`). Set a real Apple signing identity when you are ready to sign; the UI does not need another build for that.
 
-`export` writes the selected week in the JSON format consumed by the Chrome and Firefox extensions. It defaults to `preebs-WEEK-MONDAY.json` in the current directory, or accepts a custom path:
+The database lives in the platform app-support directory:
+
+- macOS: `~/Library/Application Support/PreEBS/preebs.sqlite`
+- Linux: `$XDG_DATA_HOME/PreEBS/preebs.sqlite` or `~/.local/share/PreEBS/preebs.sqlite`
+
+`--db` / `PREEBS_DB_PATH` and `--data-dir` / `PREEBS_DATA_DIR` override that. The app follows `PREEBS_DB_PATH` and `PREEBS_DATA_DIR` the same way.
+
+The app UI is Dutch: Uren, Weken, and Instellingen. Keyboard: arrow keys move between hour cells, Enter moves down, Tab follows the page. Cmd/Ctrl-K opens the command palette. Cmd/Ctrl-1/2/3/4 switch Uren, Weken, Instellingen, and Export. Cmd/Ctrl-Left/Right change week. Cmd/Ctrl-E opens export. Cmd/Ctrl-Shift-C copies the previous week. The same actions are on the native menu.
+
+## CLI
 
 ```bash
-preebs export --date 2026-09-25 --output ~/Downloads/ebs-hours.json
+cargo build --release -p preebs-cli
+./target/release/preebs config show
+./target/release/preebs book --date 2026-09-25 --project PROJECT_ID --task TASK_ID --hours 7.5
+./target/release/preebs export --date 2026-09-25
 ```
 
-### Agent skill
+`book` sets the cell. It does not add, so retrying a command is safe. Hours are 0 through 24 in steps of 0.5 (`7.5` and `7,5`). The hour type can be omitted when the task has exactly one. A booking past the daily maximum is rejected and writes nothing.
 
-Install the included skill so supported AI agents know the safe booking workflow and CLI semantics:
+`export` writes the JSON the extensions already import. The default file is `./preebs-WEEK-MONDAY.json`. Existing files are left untouched.
+
+Import a database from the old Electron app once:
+
+```bash
+preebs migrate --from ~/Library/Application\ Support/PreEBS/preebs-db.json
+```
+
+Without `--from`, `migrate` looks in the old Electron locations and `./data/preebs-db.json`. It is safe to run again. Config is replaced, weeks in the file are upserted, and weeks that exist only in SQLite stay. The JSON file is not deleted.
+
+Every command accepts `--json`. The shapes and exit codes are in [docs/cli.md](docs/cli.md). Agents should follow [skills/preebs/SKILL.md](skills/preebs/SKILL.md).
 
 ```bash
 npx skills add Bethamil/preEBS --skill preebs
 ```
 
-The skill source is in `skills/preebs/SKILL.md`.
+## Config
 
-## Chrome extension (JSON -> EBS)
+The config screen edits projects, tasks, hour types, the default hour type for new tasks, and the five daily maxima. Config files are still `preebs-config` version 1. Export and import are on that screen and on the CLI (`preebs config export`, `preebs config import`). Old files without `defaultHourTypeName` import as `Straight Time`.
 
-Extension folder:
+## Browser extensions
 
-- `/Users/user/projects/PreEBS/chrome-extension/preebs-ebs-importer`
+These folders are unchanged:
 
-Install:
+- `chrome-extension/preebs-ebs-importer`
+- `firefox-extension/preebs-ebs-importer`
 
-1. Open `chrome://extensions`
-2. Enable **Developer mode**
-3. Click **Load unpacked**
-4. Select `/Users/user/projects/PreEBS/chrome-extension/preebs-ebs-importer`
+Chrome: open `chrome://extensions`, enable Developer mode, Load unpacked, and choose the Chrome folder.
 
-Use:
+Firefox: open `about:debugging#/runtime/this-firefox`, Load Temporary Add-on, and choose `firefox-extension/preebs-ebs-importer/manifest.json`.
 
-1. Open EBS timecard page in Chrome
-2. Click the extension icon
-3. Paste `preebs-YYYY-MM-DD.json`
-4. Click **Run Import**
-5. Review and click **Opslaan** / **Doorgaan** in EBS
+On the EBS timecard page, open the extension, paste the exported JSON, and run the import. Then review and save in EBS.
 
-## Firefox extension (JSON -> EBS)
-
-Extension folder:
-
-- `/Users/user/projects/PreEBS/firefox-extension/preebs-ebs-importer`
-
-Install:
-
-1. Open `about:debugging#/runtime/this-firefox`
-2. Click **Load Temporary Add-on...**
-3. Select `/Users/user/projects/PreEBS/firefox-extension/preebs-ebs-importer/manifest.json`
-
-Use:
-
-1. Open EBS timecard page in Firefox
-2. Click the extension icon
-3. Paste `preebs-YYYY-MM-DD.json`
-4. Click **Run Import**
-5. Review and click **Opslaan** / **Doorgaan** in EBS
-
-## Run locally
+## Development
 
 ```bash
-npm install
-npm run build:web
-npm run start:web
+cargo fmt --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Rust 1.90 (see `rust-toolchain.toml`). On Linux, install WebKitGTK 4.1 before building the app: `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`, `patchelf`.
 
-## Run as macOS desktop app (Electron)
-
-Development mode (hot reload):
-
-```bash
-npm install
-npm run dev:desktop
-```
-
-Production-like local desktop run:
-
-```bash
-npm run start:desktop
-```
-
-Create a macOS app bundle (`.dmg` + `.zip`) in `dist-desktop/`:
-
-```bash
-npm run build:desktop
-```
-
-`build:desktop` automatically generates a macOS app icon from `public/favicon.png`.
-It also cleans previous desktop output before packaging to avoid recursive bundle inclusion.
-
-Desktop data storage:
-
-- Dev desktop mode: `~/.preebs-desktop/preebs-db.json`
-- Packaged app: `~/Library/Application Support/PreEBS/preebs-db.json`
-
-## Run with Docker
-
-```bash
-docker compose up -d --build
-```
-
-Open [http://localhost:43117](http://localhost:43117).
+The previous Next.js and Electron app is not in this tree. It remains in git history. Differences from that version are listed in [docs/rust-plan.md](docs/rust-plan.md).

@@ -1,0 +1,48 @@
+{
+  "type": "preebs-config",
+  "version": 1,
+  "exportedAt": "2026-09-20T10:00:00.000Z",
+  "config": {
+    "userId": "someone-else",
+    "maxHoursPerDay": [
+      "8",
+      7.25,
+      "nope",
+      8
+    ],
+    "projects": [
+      {
+        "id": "p1",
+        "name": "  Alpha   One ",
+        "label": "  ",
+        "tasks": [
+          {
+            "id": "",
+            "name": " Task ",
+            "hourTypes": [
+              {
+                "id": "h1",
+                "name": " Straight "
+              },
+              {
+                "id": "x",
+                "name": "  "
+              }
+            ]
+          },
+          {
+            "name": "   ",
+            "hourTypes": []
+          },
+          "nope"
+        ]
+      },
+      {
+        "id": "skip",
+        "name": "  ",
+        "tasks": []
+      },
+      null
+    ]
+  }
+}

@@ -1,0 +1,21 @@
+[package]
+name = "preebs-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "PreEBS desktop app"
+
+[lib]
+name = "preebs_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "=2.7.3", features = [] }
+
+[dependencies]
+preebs-core = { path = "../../preebs-core" }
+serde.workspace = true
+serde_json.workspace = true
+tauri = { version = "=2.12.4", features = [] }
+tauri-plugin-dialog = "=2.8.3"

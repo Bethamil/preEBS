@@ -1,62 +1,41 @@
 # PreEBS Agent Guide
 
-This file defines how coding/design agents should work in this repository.
+This file defines how coding agents should work in this repository.
 
-## Product Intent
-PreEBS is a UX-first weekly timesheet app used as a staging layer before EBS entry.
+## Product
 
-Primary goal: make weekly entry dramatically faster and clearer than EBS.
+PreEBS is a keyboard-first weekly timesheet. People enter Monday–Friday hours here, export JSON, and import that JSON into EBS with the Chrome or Firefox extension.
 
 ## Stack
-- Next.js 16 App Router
-- TypeScript (strict)
-- Tailwind CSS v4
-- Local file-backed JSON storage (`data/preebs-db.json`)
 
-## Non-Negotiables
-- UX quality is the top priority.
-- Keyboard-first workflows must remain fast.
-- Keep Monday-Friday entry clear and predictable.
-- Do not regress accessibility (focus states, labels, contrast).
-- Do not introduce horizontal scrolling in the core week-entry workflow.
+- `crates/preebs-core`: domain, validation, week export, config transfer, SQLite
+- `crates/preebs-cli`: the `preebs` binary. No HTTP server
+- `crates/preebs-app`: Tauri v2 shell and a Svelte 5 + Vite UI
+- `chrome-extension/` and `firefox-extension/`: unchanged consumers of the week export
+- `docs/rust-plan.md`: domain rules and intentional differences from the previous TypeScript app (that tree is only in git history)
+- `docs/cli.md`: stable `--json` schemas
 
-## Week Entry Rules
-- Preserve strong overview for large workloads (example: 3 projects x 10 tasks).
-- Grouping and totals must stay easy to scan.
-- Keep totals consistent:
-  - per day
-  - per row
-  - per project (if grouped)
-  - per week
-- Respect max-hours settings (`maxHoursPerDay`).
-- Do not allow duplicate logical entries for the same combination within the same week row set:
-  - `projectId + taskId + hourTypeId` should be unique in a week.
+The CLI and the app open the same SQLite file. A committed write bumps `meta.revision`. The app polls that counter.
 
-## Export Rules
-- Export hierarchy must remain: `day -> projects -> tasks -> hour types`.
-- Always include all 5 weekdays in export.
-- Include both IDs and names in exported nodes.
-- Preserve deterministic ordering (Mon-Fri, then configured project/task/hourType order).
+## Non-negotiables
 
-## Code Conventions
-- Prefer small, composable React components.
-- Keep domain logic in `lib/*` and UI logic in `components/*`.
-- Reuse typed helpers (`lib/types.ts`, `lib/utils.ts`, `lib/date.ts`).
-- Avoid introducing heavy dependencies without clear value.
+- Domain changes belong in `preebs-core`, with tests.
+- Week export JSON must stay byte-compatible with the golden file produced from the TypeScript exporter. The extensions depend on it.
+- Hours are 0 through 24 in steps of 0.5.
+- `book` sets a cell. It does not add. Over-max rejects the whole booking.
+- The grid save does not enforce the daily max. It warns.
+- A task has exactly one hour type. Collapse extras the way `normalizeSingleHourType` did.
+- Do not add horizontal scrolling to the week grid.
+- Keep focus, labels, and contrast in the desktop UI.
 
-## Performance
-- Avoid unnecessary re-renders in week entry.
-- Keep interactions instant-feeling.
-- Maintain autosave behavior and optimistic-feeling UI feedback.
+## Checks
 
-## Validation Before Finishing
-Run:
-1. `npm run typecheck`
-2. `npx next build --webpack`
+```bash
+cargo fmt --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+```
 
-If Turbopack fails in sandboxed environments, report that separately and still verify webpack build.
+The app crate links WebKitGTK on Linux, so those commands need the Tauri system packages listed in `.github/workflows/ci.yml`. `cargo` also runs the frontend build, so `crates/preebs-app` needs `npm ci` first.
 
-## Change Safety
-- Do not remove existing data model fields without migration handling.
-- Preserve backwards compatibility for stored week/config documents when possible.
-- If behavior changes significantly, update `README.md`.
+Rust 1.90 is pinned in `rust-toolchain.toml` because Tauri 2.12 requires it.
