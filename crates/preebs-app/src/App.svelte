@@ -2,7 +2,6 @@
   import { onMount } from "svelte";
   import { getVersion } from "@tauri-apps/api/app";
   import { listen } from "@tauri-apps/api/event";
-  import appIcon from "../src-tauri/icons/128x128.png";
   import WeekScreen from "./Week.svelte";
   import WeeksScreen from "./Weeks.svelte";
   import ConfigScreen from "./Config.svelte";
@@ -280,7 +279,7 @@
       </button>
     </nav>
     <p class="sidebar-mark">
-      <img src={appIcon} alt="" width="96" height="96" />
+      <img src="/logo.png" alt="" width="188" height="85" />
       {#if appVersion}<span>{appVersion}</span>{/if}
     </p>
   </aside>

@@ -164,8 +164,9 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   min-width: 0;
 }
 .sidebar-mark img {
-  width: 96px;
-  height: 96px;
+  width: 100%;
+  max-width: 188px;
+  height: auto;
   object-fit: contain;
   flex: none;
 }
@@ -597,7 +598,7 @@ kbd { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); }
   .sidebar { width: 76px; padding-inline: 0.4rem; }
   .brand, .nav-item span, .sidebar-meta { display: none; }
   .sidebar-mark { align-items: center; padding-inline: 0; }
-  .sidebar-mark img { width: 44px; height: 44px; }
+  .sidebar-mark img { width: 52px; height: auto; }
   .sidebar-mark span { padding-left: 0; font-size: 0.6rem; }
   .nav-item { justify-content: center; padding-inline: 0; }
   .page-head, .toolbar { flex-direction: column; }
