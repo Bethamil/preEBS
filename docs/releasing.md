@@ -37,21 +37,21 @@ The sidecar is staged by `crates/preebs-app/scripts/stage-cli.sh` before `tauri 
 Install:
 
 ```bash
-brew tap Bethamil/preebs
-brew install --cask preebs
+brew tap Bethamil/preebs https://github.com/Bethamil/preEBS.git
+brew install --cask Bethamil/preebs/preebs
 ```
 
 The cask `preebs` installs `PreEBS.app` and links `Contents/MacOS/preebs-cli` as the `preebs` command (`binary` with `target: "preebs"`). A `postflight` block runs `xattr -dr com.apple.quarantine` on the app so the unsigned build can open.
 
 ### Tap repository
 
-Create an empty GitHub repository named `homebrew-preebs` under the `Bethamil` account. Homebrew treats `brew tap Bethamil/preebs` as `github.com/Bethamil/homebrew-preebs`. The release workflow commits `Casks/preebs.rb` there. You do not need to write the cask by hand; the first successful tag creates it.
+This app repository also serves as the tap. The explicit URL is required because the repository is named `preEBS`, rather than `homebrew-preebs`. The release workflow generates `Casks/preebs.rb` with the release URLs and SHA-256 hashes, then commits it to the repository's default branch (`main`). The first successful release creates the cask, so Homebrew installation becomes available after that release finishes.
 
-### Secret
+### Authentication and retries
 
-The workflow pushes with a personal access token stored as the Actions secret `HOMEBREW_TAP_TOKEN` on `Bethamil/preEBS` (Settings → Secrets and variables → Actions). The token needs contents write on `Bethamil/homebrew-preebs` only. A fine-grained token with that single repository and the Contents permission is enough. Classic `repo` scope also works. `GITHUB_TOKEN` from this repository cannot push to the tap.
+The workflow uses the automatically supplied `GITHUB_TOKEN` with `contents: write` to update the cask in this same repository. No personal access token, extra Actions secret, or separate tap repository is required. Repository rules must allow the workflow to push this cask commit to the default branch.
 
-If the secret is missing, the GitHub Release is still created and the tap step fails. Add the secret and re-run the failed job, or push an empty commit on the tag is not possible: delete the tag locally and on the remote only if you intend to publish that version again, or re-run after the secret exists without deleting the release.
+If the cask update fails after publishing the GitHub Release, fix the cause and re-run the failed job. Existing release assets are uploaded again, and an unchanged cask does not create another commit. Keep the published release and tag in place.
 
 ## Local bundles
 

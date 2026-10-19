@@ -147,22 +147,27 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" release/* \
-            --repo "${GITHUB_REPOSITORY}" \
-            --title "${GITHUB_REF_NAME}" \
-            --generate-notes
-      - name: Update Homebrew tap
-        env:
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          VERSION: ${{ needs.verify.outputs.version }}
-        run: |
-          if [ -z "${HOMEBREW_TAP_TOKEN}" ]; then
-            echo "HOMEBREW_TAP_TOKEN is not set. Create the secret before tagging. See docs/releasing.md."
-            exit 1
+          if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" > /dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" release/* \
+              --repo "${GITHUB_REPOSITORY}" --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" release/* \
+              --repo "${GITHUB_REPOSITORY}" \
+              --title "${GITHUB_REF_NAME}" \
+              --generate-notes
           fi
+      - name: Check out the tap on the default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: tap
+      - name: Update Homebrew cask
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
           ARM="$(sha256sum "release/PreEBS_${VERSION}_aarch64.dmg" | awk '{print $1}')"
           INTEL="$(sha256sum "release/PreEBS_${VERSION}_x64.dmg" | awk '{print $1}')"
-          git clone --depth 1 "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/Bethamil/homebrew-preebs.git" tap
           mkdir -p tap/Casks
           export ARM INTEL VERSION
           python3 - <<'PY'
@@ -206,5 +211,7 @@ jobs:
           git -C tap config user.name "github-actions[bot]"
           git -C tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git -C tap add Casks/preebs.rb
-          git -C tap commit -m "preebs ${VERSION}"
-          git -C tap push
+          if ! git -C tap diff --cached --quiet; then
+            git -C tap commit -m "chore: update Homebrew cask to ${VERSION}"
+            git -C tap push origin "HEAD:${DEFAULT_BRANCH}"
+          fi

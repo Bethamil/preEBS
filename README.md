@@ -17,8 +17,8 @@ npm run tauri dev
 Install the unsigned macOS app and the `preebs` CLI with Homebrew:
 
 ```bash
-brew tap Bethamil/preebs
-brew install --cask preebs
+brew tap Bethamil/preebs https://github.com/Bethamil/preEBS.git
+brew install --cask Bethamil/preebs/preebs
 ```
 
 The cask installs `PreEBS.app` and links the `preebs` binary that is bundled inside the app. See [docs/releasing.md](docs/releasing.md) for tags and the tap.
