@@ -280,7 +280,7 @@
       </button>
     </nav>
     <p class="sidebar-mark">
-      <img src={appIcon} alt="" width="20" height="20" />
+      <img src={appIcon} alt="" width="96" height="96" />
       {#if appVersion}<span>{appVersion}</span>{/if}
     </p>
   </aside>
