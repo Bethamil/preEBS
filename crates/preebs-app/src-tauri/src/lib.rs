@@ -195,6 +195,7 @@ pub fn run() {
             let palette = menu_item(app, "palette", "Opdrachtpalet…", Some("CmdOrCtrl+K"))?;
             let prev = menu_item(app, "week-prev", "Vorige week", Some("CmdOrCtrl+Left"))?;
             let next = menu_item(app, "week-next", "Volgende week", Some("CmdOrCtrl+Right"))?;
+            let today = menu_item(app, "week-today", "Huidige week", Some("CmdOrCtrl+0"))?;
             let copy = menu_item(
                 app,
                 "week-copy",
@@ -210,26 +211,108 @@ pub fn run() {
             let theme_system = menu_item(app, "theme-system", "Thema: systeem", None)?;
             let theme_light = menu_item(app, "theme-light", "Thema: licht", None)?;
             let theme_dark = menu_item(app, "theme-dark", "Thema: donker", None)?;
+
+            // macOS only delivers Cmd+C/V/X/A/Z to webview inputs when the menu
+            // has the predefined Edit actions. Custom items with those shortcuts do not.
+            let about = PredefinedMenuItem::about(app, Some("Over PreEBS"), None)?;
+            let services = PredefinedMenuItem::services(app, None)?;
+            let hide = PredefinedMenuItem::hide(app, Some("Verberg PreEBS"))?;
+            let hide_others = PredefinedMenuItem::hide_others(app, Some("Verberg andere"))?;
+            let show_all = PredefinedMenuItem::show_all(app, Some("Toon alles"))?;
+            let quit = PredefinedMenuItem::quit(app, Some("Stop PreEBS"))?;
+            let quit_file = PredefinedMenuItem::quit(app, Some("Stop PreEBS"))?;
+            let undo = PredefinedMenuItem::undo(app, Some("Herstel"))?;
+            let redo = PredefinedMenuItem::redo(app, Some("Opnieuw"))?;
+            let cut = PredefinedMenuItem::cut(app, Some("Knip"))?;
+            let copy_text = PredefinedMenuItem::copy(app, Some("Kopieer"))?;
+            let paste = PredefinedMenuItem::paste(app, Some("Plak"))?;
+            let select_all = PredefinedMenuItem::select_all(app, Some("Selecteer alles"))?;
+            let minimize = PredefinedMenuItem::minimize(app, Some("Minimaliseer"))?;
+            let maximize = PredefinedMenuItem::maximize(app, Some("Zoom"))?;
+            let fullscreen = PredefinedMenuItem::fullscreen(app, Some("Volledig scherm"))?;
+            let close_window = PredefinedMenuItem::close_window(app, Some("Sluit venster"))?;
+            let front =
+                PredefinedMenuItem::bring_all_to_front(app, Some("Breng alles naar voren"))?;
+            let sep_app_1 = PredefinedMenuItem::separator(app)?;
+            let sep_app_2 = PredefinedMenuItem::separator(app)?;
+            let sep_app_3 = PredefinedMenuItem::separator(app)?;
+            let sep_edit = PredefinedMenuItem::separator(app)?;
+            let sep_window_1 = PredefinedMenuItem::separator(app)?;
+            let sep_window_2 = PredefinedMenuItem::separator(app)?;
             let sep_file = PredefinedMenuItem::separator(app)?;
             let sep_go = PredefinedMenuItem::separator(app)?;
-            let quit = PredefinedMenuItem::quit(app, Some("Stop PreEBS"))?;
 
+            let app_menu = Submenu::with_items(
+                app,
+                "PreEBS",
+                true,
+                &[
+                    &about,
+                    &sep_app_1,
+                    &services,
+                    &sep_app_2,
+                    &hide,
+                    &hide_others,
+                    &show_all,
+                    &sep_app_3,
+                    &quit,
+                ],
+            )?;
+            let edit_menu = Submenu::with_items(
+                app,
+                "Wijzig",
+                true,
+                &[
+                    &undo,
+                    &redo,
+                    &sep_edit,
+                    &cut,
+                    &copy_text,
+                    &paste,
+                    &select_all,
+                ],
+            )?;
+            let window_menu = Submenu::with_items(
+                app,
+                "Venster",
+                true,
+                &[
+                    &minimize,
+                    &maximize,
+                    &fullscreen,
+                    &sep_window_1,
+                    &close_window,
+                    &sep_window_2,
+                    &front,
+                ],
+            )?;
             let file_menu =
-                Submenu::with_items(app, "Bestand", true, &[&export_file, &sep_file, &quit])?;
+                Submenu::with_items(app, "Bestand", true, &[&export_file, &sep_file, &quit_file])?;
             let go_menu = Submenu::with_items(
                 app,
                 "Ga",
                 true,
                 &[&week, &weeks, &config, &export_view, &sep_go, &palette],
             )?;
-            let week_menu = Submenu::with_items(app, "Week", true, &[&prev, &next, &copy])?;
+            let week_menu = Submenu::with_items(app, "Week", true, &[&prev, &next, &today, &copy])?;
             let view_menu = Submenu::with_items(
                 app,
                 "Beeld",
                 true,
                 &[&theme_system, &theme_light, &theme_dark],
             )?;
-            let menu = Menu::with_items(app, &[&file_menu, &go_menu, &week_menu, &view_menu])?;
+            let menu = Menu::with_items(
+                app,
+                &[
+                    &app_menu,
+                    &edit_menu,
+                    &file_menu,
+                    &go_menu,
+                    &week_menu,
+                    &view_menu,
+                    &window_menu,
+                ],
+            )?;
             app.set_menu(menu)?;
             app.on_menu_event(|app, event| {
                 if let Some(window) = app.get_webview_window("main") {

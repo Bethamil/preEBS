@@ -3,7 +3,7 @@
   import { api, errorText, inTauri } from "./lib/api.js";
   import { DAYS, collapse, displayProject, displayTask, formatHours, newHourType, parseHours, uid } from "./lib/format.js";
 
-  let { reloadToken, dbPath = "", onnotice } = $props();
+  let { reloadToken, dbPath = "", theme = "system", ontheme = () => {}, onnotice } = $props();
 
   const DOTS = ["#4ade80", "#c084fc", "#94a3b8", "#60a5fa", "#fbbf24", "#fb7185"];
 
@@ -26,6 +26,8 @@
   let editVersion = 0;
   let saveChain = Promise.resolve();
   let nameInput = $state(null);
+  let hourTypeFocused = false;
+  let maxDraft = $state([null, null, null, null, null]);
 
   let visibleProjects = $derived.by(() => {
     if (!config) return [];
@@ -118,15 +120,38 @@
     }, 450);
   }
 
+  function trimmed(value) {
+    return String(value ?? "").trim();
+  }
+
+  function saveBody() {
+    const body = JSON.parse(JSON.stringify(config));
+    body.defaultHourTypeName = trimmed(body.defaultHourTypeName);
+    for (const project of body.projects ?? []) {
+      project.name = trimmed(project.name);
+      project.label = trimmed(project.label) || null;
+      for (const task of project.tasks ?? []) {
+        task.name = trimmed(task.name);
+        task.label = trimmed(task.label) || null;
+        for (const hourType of task.hourTypes ?? []) {
+          if (hourType) hourType.name = trimmed(hourType.name);
+        }
+      }
+    }
+    return body;
+  }
+
   async function persist(version) {
     if (!config) return false;
-    const body = JSON.parse(JSON.stringify(config));
+    const body = saveBody();
+    const typedHourType = hourTypeFocused ? config.defaultHourTypeName : null;
     status = "Opslaan…";
     const flight = saveChain.then(async () => {
       try {
         const saved = await api.saveConfig(body);
         if (version === editVersion) {
           config = saved;
+          if (typedHourType !== null) config.defaultHourTypeName = typedHourType;
           dirty = false;
           status = "Alles opgeslagen";
           error = "";
@@ -341,10 +366,10 @@
 <section class="screen config-screen" aria-labelledby="config-title">
   <header class="config-head">
     <h1 id="config-title">Instellingen</h1>
-    <p class="sub">Beheer je projecten, taken en werkweek.</p>
+    <p class="sub">Beheer je projecten, taken en algemene instellingen.</p>
     <div class="tabs" role="tablist">
       <button type="button" class="tab" class:active={tab === "projects"} role="tab" aria-selected={tab === "projects"} onclick={() => (tab = "projects")}>Projecten en taken</button>
-      <button type="button" class="tab" class:active={tab === "week"} role="tab" aria-selected={tab === "week"} onclick={() => (tab = "week")}>Werkweek</button>
+      <button type="button" class="tab" class:active={tab === "general"} role="tab" aria-selected={tab === "general"} onclick={() => (tab = "general")}>Algemeen</button>
       <button type="button" class="tab" class:active={tab === "data"} role="tab" aria-selected={tab === "data"} onclick={() => (tab = "data")}>Gegevens</button>
     </div>
   </header>
@@ -426,7 +451,7 @@
               <input
                 value={selected.label ?? ""}
                 oninput={(event) => {
-                  selected.label = event.currentTarget.value || null;
+                  selected.label = event.currentTarget.value;
                   markDirty();
                 }}
               />
@@ -488,41 +513,66 @@
         {/if}
       </section>
     </div>
-  {:else if config && tab === "week"}
+  {:else if config && tab === "general"}
     <section class="card settings-panel data-panel">
-      <h2>Werkweek</h2>
-      <p class="hint">Maximale uren per weekdag. Een boeking boven dit maximum wordt geweigerd. Het weekraster waarschuwt alleen.</p>
-      <div class="max-grid">
-        {#each DAYS as day, index (day)}
-          <label>
-            {day}
-            <input
-              value={formatHours(config.maxHoursPerDay[index]) || "0"}
-              onchange={(event) => {
-                if (!setMax(index, event.currentTarget.value)) {
-                  event.currentTarget.value = formatHours(config.maxHoursPerDay[index]) || "0";
-                }
-              }}
-            />
-          </label>
-        {/each}
+      <h2>Algemeen</h2>
+      <div>
+        <p class="field-label">Weergave</p>
+        <div class="segment" role="radiogroup" aria-label="Weergave">
+          <button type="button" role="radio" aria-checked={theme === "system"} class:active={theme === "system"} onclick={() => ontheme("system")}>Systeem</button>
+          <button type="button" role="radio" aria-checked={theme === "light"} class:active={theme === "light"} onclick={() => ontheme("light")}>Licht</button>
+          <button type="button" role="radio" aria-checked={theme === "dark"} class:active={theme === "dark"} onclick={() => ontheme("dark")}>Donker</button>
+        </div>
+        <p class="hint">Systeem volgt de weergave van macOS. De keuze wordt onthouden.</p>
       </div>
+      <div>
+        <h3>Werkweek</h3>
+        <p class="hint">Maximale uren per weekdag. Een boeking boven dit maximum wordt geweigerd. Het weekraster waarschuwt alleen.</p>
+        <div class="max-grid">
+          {#each DAYS as day, index (day)}
+            <label>
+              {day}
+              <input
+                value={maxDraft[index] ?? (formatHours(config.maxHoursPerDay[index]) || "0")}
+                oninput={(event) => {
+                  maxDraft[index] = event.currentTarget.value;
+                }}
+                onchange={(event) => {
+                  if (!setMax(index, event.currentTarget.value)) {
+                    maxDraft[index] = formatHours(config.maxHoursPerDay[index]) || "0";
+                    return;
+                  }
+                  maxDraft[index] = null;
+                }}
+              />
+            </label>
+          {/each}
+        </div>
+      </div>
+      <label class="grow">
+        Standaard uurtype
+        <input
+          bind:value={config.defaultHourTypeName}
+          autocomplete="off"
+          spellcheck="false"
+          oninput={markDirty}
+          onfocus={() => (hourTypeFocused = true)}
+          onblur={() => {
+            hourTypeFocused = false;
+            const next = trimmed(config.defaultHourTypeName);
+            if (next !== config.defaultHourTypeName) {
+              config.defaultHourTypeName = next;
+              markDirty();
+            }
+          }}
+        />
+        <span class="hint">Nieuwe taken krijgen deze naam. Bestaande uursoorten blijven staan.</span>
+      </label>
       <p class="save-line" class:warn={dirty} role="status">{status}</p>
     </section>
   {:else if config && tab === "data"}
     <section class="card settings-panel data-panel">
       <h2>Gegevens</h2>
-      <label class="grow">
-        Standaard uurtype
-        <input
-          value={config.defaultHourTypeName}
-          oninput={(event) => {
-            config.defaultHourTypeName = event.currentTarget.value;
-            markDirty();
-          }}
-        />
-        <span class="hint">Nieuwe taken krijgen deze naam. Bestaande uursoorten blijven staan.</span>
-      </label>
       <div>
         <p class="field-label">Database</p>
         <p class="path">{dbPath || "Database opent bij start"}</p>

@@ -62,6 +62,7 @@
       {
         id: "week-today",
         label: "Huidige week",
+        hint: "Ctrl/Cmd 0",
         run: () => {
           view = "week";
           weekStart = mondayOf();
@@ -133,9 +134,10 @@
       setTheme(id.slice(6));
       return;
     }
-    if (id === "week-prev" || id === "week-next" || id === "week-copy") view = "week";
+    if (id === "week-prev" || id === "week-next" || id === "week-today" || id === "week-copy") view = "week";
     if (id === "week-prev") weekStart = shiftWeek(weekStart, -1);
     if (id === "week-next") weekStart = shiftWeek(weekStart, 1);
+    if (id === "week-today") weekStart = mondayOf();
     if (id === "week-copy") weekApi?.copyPrevious();
     if (id === "export-save") view = "export";
   }
@@ -184,6 +186,9 @@
     } else if (key === "arrowright") {
       view = "week";
       weekStart = shiftWeek(weekStart, 1);
+    } else if (key === "0" && !event.shiftKey && !event.altKey) {
+      view = "week";
+      weekStart = mondayOf();
     } else if (event.shiftKey && key === "c") {
       event.preventDefault();
       view = "week";
@@ -292,12 +297,13 @@
         bind:api={weekApi}
         onnotice={flash}
         onshift={(delta) => (weekStart = shiftWeek(weekStart, delta))}
+        oncurrent={() => (weekStart = mondayOf())}
         onexport={() => (view = "export")}
       />
     {:else if view === "weeks"}
       <WeeksScreen {reloadToken} onopen={openWeek} onexport={(date) => { weekStart = date; view = "export"; }} onnotice={flash} />
     {:else if view === "config"}
-      <ConfigScreen {reloadToken} {dbPath} onnotice={flash} />
+      <ConfigScreen {reloadToken} {dbPath} {theme} ontheme={setTheme} onnotice={flash} />
     {:else}
       <ExportScreen {weekStart} {reloadToken} onnotice={flash} />
     {/if}

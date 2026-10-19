@@ -12,6 +12,7 @@
     halves,
     iso,
     isoWeekNumber,
+    mondayOf,
     missingCombos,
     uid,
     weekSubtitle,
@@ -23,6 +24,7 @@
     api: bridge = $bindable(null),
     onnotice,
     onshift,
+    oncurrent,
     onexport,
   } = $props();
 
@@ -398,6 +400,9 @@
       <button type="button" class="btn" onclick={() => onshift(-1)}>
         <span aria-hidden="true">‹</span> Vorige week
       </button>
+      {#if weekStart !== mondayOf()}
+        <button type="button" class="btn" onclick={oncurrent}>Huidige week</button>
+      {/if}
       <button type="button" class="btn" onclick={() => onshift(1)}>
         Volgende week <span aria-hidden="true">›</span>
       </button>
