@@ -1,4 +1,5 @@
 <script>
+  import ConfirmDialog from "./ConfirmDialog.svelte";
   import { api, errorText } from "./lib/api.js";
   import { formatTotal, weekRange } from "./lib/format.js";
 
@@ -6,6 +7,9 @@
   let query = $state("");
   let weeks = $state([]);
   let error = $state("");
+  let pendingWeek = $state(null);
+  let deleteError = $state("");
+  let deleting = $state(false);
 
   async function load() {
     try {
@@ -23,14 +27,25 @@
     return () => window.clearTimeout(handle);
   });
 
-  async function remove(week) {
-    if (!confirm(`Week van ${week.weekStartDate} verwijderen?`)) return;
+  function askRemove(week) {
+    deleteError = "";
+    pendingWeek = week;
+  }
+
+  async function confirmRemove() {
+    if (!pendingWeek || deleting) return;
+    const week = pendingWeek;
+    deleting = true;
+    deleteError = "";
     try {
       await api.deleteWeek(week.weekStartDate);
+      pendingWeek = null;
       onnotice(`${week.weekStartDate} verwijderd.`);
       await load();
     } catch (caught) {
-      onnotice(errorText(caught));
+      deleteError = errorText(caught);
+    } finally {
+      deleting = false;
     }
   }
 </script>
@@ -63,10 +78,25 @@
           <div class="row-actions">
             <button type="button" onclick={() => onopen(week.weekStartDate)}>Open</button>
             <button type="button" onclick={() => onexport(week.weekStartDate)}>Exporteer</button>
-            <button type="button" onclick={() => remove(week)}>Verwijder</button>
+            <button type="button" onclick={() => askRemove(week)}>Verwijder</button>
           </div>
         </li>
       {/each}
     </ul>
   {/if}
 </section>
+
+{#if pendingWeek}
+  <ConfirmDialog
+    title="Week verwijderen"
+    message={`De week van ${weekRange(pendingWeek.weekStartDate)} (${pendingWeek.weekStartDate}) wordt verwijderd, inclusief de geboekte uren.`}
+    confirmLabel="Verwijderen"
+    danger
+    busy={deleting}
+    error={deleteError}
+    onconfirm={confirmRemove}
+    oncancel={() => {
+      if (!deleting) pendingWeek = null;
+    }}
+  />
+{/if}

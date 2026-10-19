@@ -1,5 +1,6 @@
 <script>
   import { onMount, untrack } from "svelte";
+  import ConfirmDialog from "./ConfirmDialog.svelte";
   import HoursCell from "./HoursCell.svelte";
   import { api, errorText } from "./lib/api.js";
   import {
@@ -43,6 +44,7 @@
   let loading = $state(true);
   let menuId = $state(null);
   let picker = $state(null);
+  let pendingDelete = $state(null);
   let focusDay = $state(-1);
 
   let saveTimer = 0;
@@ -342,6 +344,26 @@
     markDirty();
   }
 
+  function askRemoveRow(row) {
+    menuId = null;
+    picker = null;
+    pendingDelete = { kind: "row", name: visibleTaskName(row), row };
+  }
+
+  function askRemoveCustom(group) {
+    menuId = null;
+    picker = null;
+    pendingDelete = { kind: "project", name: group.name, id: group.id };
+  }
+
+  function confirmPendingDelete() {
+    const pending = pendingDelete;
+    pendingDelete = null;
+    if (!pending) return;
+    if (pending.kind === "row") removeRow(pending.row);
+    else removeCustom({ id: pending.id });
+  }
+
   async function copyPrevious() {
     try {
       if (dirty) await flush();
@@ -499,9 +521,9 @@
                     Notitie
                     <input aria-label={`Notitie voor ${row.taskName}`} bind:value={row.note} oninput={markDirty} />
                   </label>
-                  <button type="button" class="menu-item menu-danger" role="menuitem" onclick={() => removeRow(row)}>Rij verwijderen</button>
+                  <button type="button" class="menu-item menu-danger" role="menuitem" onclick={() => askRemoveRow(row)}>Rij verwijderen</button>
                   {#if !group.configured && group.rows[0]?.id === row.id}
-                    <button type="button" class="menu-item menu-danger" role="menuitem" onclick={() => removeCustom(group)}>Project verwijderen</button>
+                    <button type="button" class="menu-item menu-danger" role="menuitem" onclick={() => askRemoveCustom(group)}>Project verwijderen</button>
                   {/if}
                 </div>
               {/if}
@@ -564,6 +586,19 @@
         <div class="week-total">{formatTotal(weekTotal)} / {formatTotal(required)} uur</div>
       </div>
     </section>
+
+    {#if pendingDelete}
+      <ConfirmDialog
+        title={pendingDelete.kind === "row" ? "Rij verwijderen" : "Project verwijderen"}
+        message={pendingDelete.kind === "row"
+          ? `${pendingDelete.name} verdwijnt uit deze week, inclusief de uren op deze regel.`
+          : `${pendingDelete.name} en de regels van dit aangepaste project verdwijnen uit deze week. De configuratie blijft staan.`}
+        confirmLabel="Verwijderen"
+        danger
+        onconfirm={confirmPendingDelete}
+        oncancel={() => (pendingDelete = null)}
+      />
+    {/if}
 
     <p class="save-line" class:warn={dirty && !error} class:bad={Boolean(error)} role="status">
       {#if !dirty && !error}

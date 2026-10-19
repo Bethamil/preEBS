@@ -1,5 +1,6 @@
 <script>
   import { open, save } from "@tauri-apps/plugin-dialog";
+  import ConfirmDialog from "./ConfirmDialog.svelte";
   import { api, errorText, inTauri } from "./lib/api.js";
   import { DAYS, collapse, displayProject, displayTask, formatHours, newHourType, parseHours, uid } from "./lib/format.js";
 
@@ -17,6 +18,7 @@
   let editorError = $state("");
   let confirmDelete = $state(false);
   let confirmError = $state("");
+  let confirmProject = $state(false);
   let removing = $state(false);
   let error = $state("");
   let status = $state("Alles opgeslagen");
@@ -203,10 +205,18 @@
     markDirty();
   }
 
+  function askRemoveProject() {
+    if (!selected) return;
+    menuOpen = false;
+    confirmProject = true;
+  }
+
   function removeProject() {
     if (!selected) return;
-    config.projects = config.projects.filter((project) => project.id !== selected.id);
-    selectedId = visibleProjects.find((project) => project.id !== selected.id)?.id ?? "";
+    const removedId = selected.id;
+    config.projects = config.projects.filter((project) => project.id !== removedId);
+    selectedId = visibleProjects.find((project) => project.id !== removedId)?.id ?? "";
+    confirmProject = false;
     menuOpen = false;
     markDirty();
   }
@@ -439,7 +449,7 @@
                   <button type="button" class="menu-item" onclick={() => moveProject(-1)}>Omhoog</button>
                   <button type="button" class="menu-item" onclick={() => moveProject(1)}>Omlaag</button>
                   <button type="button" class="menu-item" onclick={toggleArchive}>{selected.archived ? "Dearchiveren" : "Archiveren"}</button>
-                  <button type="button" class="menu-item menu-danger" onclick={removeProject}>Verwijderen</button>
+                  <button type="button" class="menu-item menu-danger" onclick={askRemoveProject}>Verwijderen</button>
                 </div>
               {/if}
             </div>
@@ -642,17 +652,28 @@
 {/if}
 
 {#if confirmDelete && editor?.taskId}
-  <div class="modal-backdrop confirm-layer">
-    <button type="button" class="backdrop-dismiss" aria-label="Annuleren" onclick={() => (confirmDelete = false)}></button>
-    <div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-dialog-title" aria-describedby="delete-dialog-body">
-      <h2 id="delete-dialog-title">Taak verwijderen</h2>
-      <p id="delete-dialog-body">{confirmText}</p>
-      {#if confirmError}<p class="banner danger" role="alert">{confirmError}</p>{/if}
-      <div class="modal-actions">
-        <button type="button" class="btn" onclick={() => (confirmDelete = false)} disabled={removing}>Annuleren</button>
-        <button type="button" class="btn btn-danger" onclick={removeCurrentTask} disabled={removing}>Verwijderen</button>
-      </div>
-    </div>
-  </div>
+  <ConfirmDialog
+    title="Taak verwijderen"
+    message={confirmText}
+    confirmLabel="Verwijderen"
+    danger
+    busy={removing}
+    error={confirmError}
+    onconfirm={removeCurrentTask}
+    oncancel={() => {
+      if (!removing) confirmDelete = false;
+    }}
+  />
+{/if}
+
+{#if confirmProject && selected}
+  <ConfirmDialog
+    title="Project verwijderen"
+    message={`${displayProject(selected)} verdwijnt uit de configuratie, samen met de taken. Uren die al in weken zijn geboekt blijven staan.`}
+    confirmLabel="Verwijderen"
+    danger
+    onconfirm={removeProject}
+    oncancel={() => (confirmProject = false)}
+  />
 {/if}
 </section>
