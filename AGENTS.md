@@ -24,7 +24,7 @@ The CLI and the app open the same SQLite file. A committed write bumps `meta.rev
 - Hours are 0 through 24 in steps of 0.5.
 - `book` sets a cell. It does not add. Over-max rejects the whole booking.
 - The grid save does not enforce the daily max. It warns.
-- Do not collapse a task to one hour type.
+- A task has exactly one hour type. Collapse extras the way `normalizeSingleHourType` did.
 - Do not add horizontal scrolling to the week grid.
 - Keep focus, labels, and contrast in the desktop UI.
 

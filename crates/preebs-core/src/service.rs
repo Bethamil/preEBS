@@ -119,6 +119,7 @@ impl PreEbs {
                 id,
                 name,
                 label,
+                archived: false,
                 tasks: Vec::new(),
             };
             config.projects.push(project.clone());
@@ -133,11 +134,15 @@ impl PreEbs {
         token: &str,
         name: FieldUpdate<'_>,
         label: FieldUpdate<'_>,
+        archived: Option<bool>,
         dry_run: bool,
     ) -> Result<Project> {
-        if matches!(name, FieldUpdate::Keep) && matches!(label, FieldUpdate::Keep) {
+        if matches!(name, FieldUpdate::Keep)
+            && matches!(label, FieldUpdate::Keep)
+            && archived.is_none()
+        {
             return Err(Error::validation(
-                "Nothing to update. Pass --name and/or --label.",
+                "Nothing to update. Pass --name, --label, --archive, or --unarchive.",
             ));
         }
         self.write(dry_run, |conn| {
@@ -149,6 +154,9 @@ impl PreEbs {
             if let FieldUpdate::Set(label) = label {
                 let label = safe_trim(label);
                 config.projects[index].label = if label.is_empty() { None } else { Some(label) };
+            }
+            if let Some(archived) = archived {
+                config.projects[index].archived = archived;
             }
             config.updated_at = now_iso();
             let project = config.projects[index].clone();
@@ -172,11 +180,13 @@ impl PreEbs {
         &mut self,
         project: &str,
         name: &str,
+        label: Option<&str>,
         hour_type_names: &[String],
         id: Option<&str>,
         dry_run: bool,
     ) -> Result<Task> {
         let name = resolve::require_name(name, "Task name")?;
+        let label = label.map(safe_trim).filter(|value| !value.is_empty());
         let id = match id {
             Some(id) => resolve::clean_id(id)?,
             None => new_id(),
@@ -189,6 +199,7 @@ impl PreEbs {
             let task = Task {
                 id,
                 name,
+                label,
                 hour_types,
             };
             config.projects[project_index].tasks.push(task.clone());
@@ -198,15 +209,46 @@ impl PreEbs {
         })
     }
 
-    pub fn edit_task(&mut self, token: &str, name: Option<&str>, dry_run: bool) -> Result<Task> {
-        let Some(name) = name else {
-            return Err(Error::validation("Nothing to update. Pass --name."));
+    pub fn edit_task(
+        &mut self,
+        token: &str,
+        name: FieldUpdate<'_>,
+        label: FieldUpdate<'_>,
+        hour_type_name: Option<&str>,
+        dry_run: bool,
+    ) -> Result<Task> {
+        if matches!(name, FieldUpdate::Keep)
+            && matches!(label, FieldUpdate::Keep)
+            && hour_type_name.is_none()
+        {
+            return Err(Error::validation(
+                "Nothing to update. Pass --name, --label, and/or --hour-type.",
+            ));
+        }
+        let hour_type_name = match hour_type_name {
+            Some(name) => Some(resolve::require_name(name, "Hour type name")?),
+            None => None,
         };
-        let name = resolve::require_name(name, "Task name")?;
         self.write(dry_run, |conn| {
             let mut config = store::load_config(conn)?;
             let (project_index, task_index) = resolve::task_location(&config, token)?;
-            config.projects[project_index].tasks[task_index].name = name;
+            let task = &mut config.projects[project_index].tasks[task_index];
+            if let FieldUpdate::Set(name) = name {
+                task.name = resolve::require_name(name, "Task name")?;
+            }
+            if let FieldUpdate::Set(label) = label {
+                let label = safe_trim(label);
+                task.label = if label.is_empty() { None } else { Some(label) };
+            }
+            if let Some(hour_name) = hour_type_name {
+                if task.hour_types.is_empty() {
+                    task.hour_types
+                        .push(normalize::default_hour_type(&hour_name));
+                } else {
+                    task.hour_types[0].name = hour_name;
+                    task.hour_types.truncate(1);
+                }
+            }
             config.updated_at = now_iso();
             let task = config.projects[project_index].tasks[task_index].clone();
             store::put_config(conn, &config)?;
@@ -233,36 +275,10 @@ impl PreEbs {
         id: Option<&str>,
         dry_run: bool,
     ) -> Result<HourType> {
-        let name = resolve::require_name(name, "Hour type name")?;
-        self.write(dry_run, |conn| {
-            let mut config = store::load_config(conn)?;
-            let project_index = resolve::project_index(&config, project)?;
-            let task_index = resolve::task_index(&config.projects[project_index], task)?;
-            let mut hour_type = if let Some(id) = id {
-                HourType {
-                    id: resolve::clean_id(id)?,
-                    name,
-                }
-            } else {
-                normalize::default_hour_type(&name)
-            };
-            let existing = &config.projects[project_index].tasks[task_index].hour_types;
-            if existing.iter().any(|item| item.id == hour_type.id) {
-                if id.is_some() {
-                    return Err(Error::conflict(format!(
-                        "Hour type id already exists on this task: {}",
-                        hour_type.id
-                    )));
-                }
-                hour_type.id = new_id();
-            }
-            config.projects[project_index].tasks[task_index]
-                .hour_types
-                .push(hour_type.clone());
-            config.updated_at = now_iso();
-            store::put_config(conn, &config)?;
-            Ok(hour_type)
-        })
+        let _ = (project, task, name, id, dry_run);
+        Err(Error::validation(
+            "A task has exactly one hour type. Rename it with hour-type edit or task edit --hour-type.",
+        ))
     }
 
     pub fn edit_hour_type(
@@ -297,19 +313,10 @@ impl PreEbs {
         task: Option<&str>,
         dry_run: bool,
     ) -> Result<HourType> {
-        self.write(dry_run, |conn| {
-            let mut config = store::load_config(conn)?;
-            let (project_index, task_index, hour_index) =
-                resolve::hour_type_location(&config, token, project, task)?;
-            let hour_types = &mut config.projects[project_index].tasks[task_index].hour_types;
-            if hour_types.len() <= 1 {
-                return Err(Error::validation("A task must keep at least one hour type"));
-            }
-            let hour_type = hour_types.remove(hour_index);
-            config.updated_at = now_iso();
-            store::put_config(conn, &config)?;
-            Ok(hour_type)
-        })
+        let _ = (token, project, task, dry_run);
+        Err(Error::validation(
+            "A task has exactly one hour type and it cannot be removed. Rename it with hour-type edit.",
+        ))
     }
 
     pub fn list_weeks(&self, query: &str) -> Result<Vec<WeekSummary>> {
@@ -600,7 +607,7 @@ fn hour_types_from_names(names: &[String], default_name: &str) -> Vec<HourType> 
         }
         hour_types.push(hour_type);
     }
-    hour_types
+    normalize::collapse_hour_types(hour_types, default_name)
 }
 
 fn custom_name_map(custom_projects: &[WeekCustomProject]) -> HashMap<String, String> {

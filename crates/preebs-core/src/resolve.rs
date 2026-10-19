@@ -48,7 +48,13 @@ pub fn task_index(project: &Project, token: &str) -> Result<usize> {
         .tasks
         .iter()
         .enumerate()
-        .filter(|(_, task)| names_equal(&task.name, token))
+        .filter(|(_, task)| {
+            names_equal(&task.name, token)
+                || task
+                    .label
+                    .as_ref()
+                    .is_some_and(|label| names_equal(label, token))
+        })
         .map(|(index, _)| index)
         .collect();
     match matches.as_slice() {
@@ -99,7 +105,13 @@ pub fn task_location(config: &UserConfig, token: &str) -> Result<(usize, usize)>
                 .tasks
                 .iter()
                 .enumerate()
-                .filter(move |(_, task)| names_equal(&task.name, token))
+                .filter(move |(_, task)| {
+                    names_equal(&task.name, token)
+                        || task
+                            .label
+                            .as_ref()
+                            .is_some_and(|label| names_equal(label, token))
+                })
                 .map(move |(task_index, _)| (project_index, task_index))
         })
         .collect();

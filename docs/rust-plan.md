@@ -72,10 +72,10 @@ UserConfig
   updatedAt: ISO-8601
 
 Project
-  id, name, label?
+  id, name, label?, archived?
 
 Task
-  id, name, hourTypes: HourType[]
+  id, name, label?, hourTypes: HourType[1]
 
 HourType
   id, name
@@ -90,7 +90,11 @@ Constants kept compatible with stored data:
 - `DEFAULT_MAX_HOURS_PER_DAY = 8`
 - `WEEKDAY_COUNT = 5`
 
-New tasks with no hour types get one hour type named `defaultHourTypeName`. When that name equals `Straight Time` (case-insensitive, whitespace-collapsed), the id is `default-straight-time`. Otherwise the id is a new UUID. Changing the default later does not rewrite existing tasks. Names already stored on tasks, including older defaults, are user data and are left as imported.
+A task has exactly one hour type. `normalizeConfig` collapses a longer list the same way the old `normalizeSingleHourType` did: drop empty names, then keep the first hour type whose name is not `Straight Time` (case-insensitive, whitespace-collapsed). If every remaining name is `Straight Time`, the first one is kept, id and name unchanged. An empty list becomes one hour type named `defaultHourTypeName`. When that name equals `Straight Time`, the id is `default-straight-time`. Otherwise the id is a new UUID. Changing the default later does not rewrite existing tasks.
+
+`Project.label` is the optional display name (Weergavenaam). `Project.name` is the EBS project name. `Task.label` is the optional display label (Weergavelabel). The week grid shows the label when it is set and the EBS name otherwise. Week export and the extension JSON always use `name`, never the label. Old config files omit `label` on tasks and `archived` on projects; both import as absent / false. `archived: true` hides a project from the settings list and from new week rows until “Toon gearchiveerde projecten” is on. Existing week rows stay.
+
+On save and on load, a week row whose task is still in config is rewritten onto that task’s only hour type. Rows that then share a key merge: hours are added per day and clamped, the first note wins, the first id wins. That is how a migrated week that booked two hour types on one task becomes one row. The export document shape is unchanged (`tasks[].hourTypes[]`); a task simply has one entry.
 
 Names are `trim` + internal whitespace collapsed to a single space (`safeTrim`). Empty names are dropped. Empty labels and notes are stored as absent, not `""`.
 
@@ -195,13 +199,13 @@ Default export path: `./preebs-{monday}.json`. Config export default: `./preebs-
 
 These are called out so parity review does not treat them as accidents.
 
-1. **Hour types are not collapsed.** `normalizeConfig` and the config screen kept a single hour type per task, preferring a name other than the historical default. The new CLI has `hour-type add|edit|rm`, and booking already distinguished “exactly one” from “several”, so the Rust core stores every hour type. Empty lists still receive the default hour type. Migration does not invent or drop hour types that are present in the JSON.
-2. **`defaultHourTypeName` is new** on `UserConfig`. Config files from the TypeScript app omit it and import as `Straight Time`. Exported config (still `type: "preebs-config"`, `version: 1`) includes the field. The old parser ignored unknown fields, so an old build would still read projects and max hours. Hour-type names already in a file are kept as user data.
+1. **`Task.label` is new.** The old task had only `name` and `hourTypes`. The label is optional, omitted when empty, and ignored by an old parser. Project `label` is the existing display name.
+2. **`defaultHourTypeName` is new** on `UserConfig`. Config files from the TypeScript app omit it and import as `Straight Time`. Exported config (still `type: "preebs-config"`, `version: 1`) includes the field. The old parser ignored unknown fields, so an old build would still read projects and max hours. Collapsing multiple hour types prefers a name other than `Straight Time`, which is the old rule, not “other than the configured default”.
 3. **Reads do not bump `updatedAt`.** `getConfig` ran `normalizeConfig`, which set `updatedAt` to now in the response without saving. Rust returns the stored timestamp.
 4. **`week show` adds `exists`.** The HTTP API always returned a synthetic empty week, so a missing week and an empty saved week looked the same. JSON now includes `"exists": false` plus that same empty document.
-5. **Names are accepted as well as ids**, case-insensitive, only when one entity matches. Project labels count as names. Ambiguous input is an error (exit 5), never a guess. Ids win over names.
+5. **Names are accepted as well as ids**, case-insensitive, only when one entity matches. Project labels and task labels count as names. Ambiguous input is an error (exit 5), never a guess. Ids win over names.
 6. **Storage is SQLite**, not `preebs-db.json`, and there is no HTTP server and no Electron process.
-7. **The last hour type on a task cannot be removed.** The old normalizer would have put the default back on the next save anyway.
+7. **`hour-type add` and `hour-type rm` are rejected.** A task’s only hour type is renamed with `hour-type edit` or `task edit --hour-type`. The id stays so existing week rows still match until the next normalize.
 8. **Migration keeps SQLite-only weeks** instead of making the database an exact mirror of one JSON file. Config itself is replaced.
 
 ## CLI
@@ -224,18 +228,16 @@ preebs config import <file> [--dry-run]
 
 preebs project list
 preebs project add --name NAME [--label LABEL] [--id ID]
-preebs project edit <id> [--name NAME] [--label LABEL]
+preebs project edit <id> [--name NAME] [--label LABEL] [--archive | --unarchive]
 preebs project rm <id>
 
 preebs task list --project PROJECT
-preebs task add --project PROJECT --name NAME [--hour-type NAME ...] [--id ID]
-preebs task edit <id> [--name NAME]
+preebs task add --project PROJECT --name NAME [--label LABEL] [--hour-type NAME ...] [--id ID]
+preebs task edit <id> [--name NAME] [--label LABEL] [--hour-type NAME]
 preebs task rm <id>
 
 preebs hour-type list --project PROJECT --task TASK
-preebs hour-type add --project PROJECT --task TASK --name NAME [--id ID]
-preebs hour-type edit <id> [--name NAME] [--project PROJECT --task TASK]
-preebs hour-type rm <id> [--project PROJECT --task TASK]
+preebs hour-type edit <id> --name NAME [--project PROJECT --task TASK]
 
 preebs weeks [--query TEXT]
 preebs week show --date YYYY-MM-DD
@@ -251,9 +253,9 @@ preebs migrate [--from FILE] [--dry-run]
 
 `--max-hours` is five values. Separator is a comma (`8,8,8,8,8` or `7.5,8,8,8,8`), whitespace (`7,5 8 8 8 8`), or semicolons when a value itself uses a decimal comma (`7,5;8;8;8;8`).
 
-`--label ""` clears a label. Omitting `--label` leaves it. Same pattern for notes.
+`--label ""` clears a project or task label. Omitting `--label` leaves it. Same pattern for notes.
 
-`hour-type edit|rm` may omit `--project` and `--task` only when the id matches a single row. `default-straight-time` usually will not.
+Repeating `--hour-type` on `task add` still collapses to one, using the rule above. `hour-type edit` may omit `--project` and `--task` only when the id matches a single row. `default-straight-time` usually will not.
 
 ## Desktop app
 
@@ -263,7 +265,7 @@ Screens:
 
 - **Week** (home). Project groups, one row per combo, five day cells, totals per day, per row, per project, and per week. Max-hour warnings on the day and the project. Autosave. Copy previous week. Custom projects. Add the next missing configured combo. Arrow keys move between cells; Tab follows DOM order. Enter moves down.
 - **Weeks.** Search, status (under / match / over), open, delete, export.
-- **Config.** Projects, tasks, hour types, default hour type name, max hours per day. Reorder within a project. Search.
+- **Instellingen.** Tabs: Projecten en taken, Werkweek, Gegevens. One selected project, one hour type per task, optional display labels. Autosave.
 - **Export.** Preview of the extension JSON, save without overwriting, copy. Config import/export lives on the config screen and is also a command-palette action.
 
 UX bar:
@@ -295,7 +297,7 @@ Export and config transfer are checked against golden files produced by running 
 - [x] Golden week export, exact pretty JSON
 - [x] Config export/import roundtrip, including rejection of bad type/version and skipping empty names
 - [x] `defaultHourTypeName` roundtrips; missing field defaults to `Straight Time`; new tasks receive `default-straight-time` when the name matches
-- [x] Multiple hour types survive save (the TS collapse is gone)
+- [x] A task stores one hour type; import and migrate collapse extras the old way and merge week rows onto it
 - [x] Migrate is idempotent and `--dry-run` does not create a database write
 - [x] Export refuses to overwrite
 - [x] CLI `--json` error shape and exit codes

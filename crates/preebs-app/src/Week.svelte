@@ -6,6 +6,7 @@
     addDays,
     dayHeading,
     displayProject,
+    displayTask,
     formatTotal,
     groupRows,
     halves,
@@ -52,7 +53,7 @@
     const seen = new Set(grouped.map((group) => group.id));
     const extras = [];
     for (const project of config?.projects ?? []) {
-      if (seen.has(project.id) || !project.tasks?.length) continue;
+      if (project.archived || seen.has(project.id) || !project.tasks?.length) continue;
       extras.push({
         id: project.id,
         name: displayProject(project),
@@ -76,6 +77,12 @@
   let required = $derived(maxHours.reduce((sum, value) => sum + Number(value), 0));
   let title = $derived(`Week ${isoWeekNumber(weekStart)}`);
   let subtitle = $derived(weekSubtitle(weekStart));
+
+  function visibleTaskName(row) {
+    const project = config?.projects?.find((item) => item.id === row.projectId);
+    const task = project?.tasks?.find((item) => item.id === row.taskId);
+    return displayTask(task, row.taskName);
+  }
 
   function payloadRows() {
     return rows.map((row) => ({
@@ -451,7 +458,7 @@
           <div class="cols task-line">
             <div class="task-label">
               <div style="min-width: 0">
-                <span class="task-name">{row.taskName}</span>
+                <span class="task-name">{visibleTaskName(row)}</span>
                 {#if showType(group, row)}
                   <span class="task-meta">{row.hourTypeName}</span>
                 {/if}
@@ -517,7 +524,7 @@
             <div class="picker" role="listbox" aria-label="Regel kiezen">
               {#each optionsFor(group.id) as combo (combo.key)}
                 <button type="button" onclick={() => addCombo(combo)}>
-                  {combo.taskName} · {combo.hourTypeName}
+                  {combo.displayName || combo.taskName}
                 </button>
               {/each}
             </div>

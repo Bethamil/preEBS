@@ -30,6 +30,9 @@ pub struct HourType {
 pub struct Task {
     pub id: String,
     pub name: String,
+    /// Optional name shown in the app. Export and EBS keep `name`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
     pub hour_types: Vec<HourType>,
 }
 
@@ -40,7 +43,14 @@ pub struct Project {
     pub name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
+    /// Hidden from the settings list and the week grid until the archive toggle is on.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub archived: bool,
     pub tasks: Vec<Task>,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -72,6 +82,14 @@ impl UserConfig {
             .filter(|label| !label.trim().is_empty())
             .cloned()
             .unwrap_or_else(|| project.name.clone())
+    }
+
+    pub fn task_display_name(task: &Task) -> String {
+        task.label
+            .as_ref()
+            .filter(|label| !label.trim().is_empty())
+            .cloned()
+            .unwrap_or_else(|| task.name.clone())
     }
 }
 

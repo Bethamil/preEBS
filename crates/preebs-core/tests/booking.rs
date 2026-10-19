@@ -15,12 +15,13 @@ fn seed(app: &mut PreEbs) {
     app.add_task(
         "Alpha Label",
         "Design",
+        None,
         &[DEFAULT_HOUR_TYPE_NAME.into(), "Overtime".into()],
         Some("task-design"),
         false,
     )
     .unwrap();
-    app.add_task("proj-a", "Build", &[], Some("task-build"), false)
+    app.add_task("proj-a", "Build", None, &[], Some("task-build"), false)
         .unwrap();
 }
 
@@ -128,7 +129,7 @@ fn over_max_and_weekend_do_not_write() {
 fn hour_type_rules_and_ambiguous_names() {
     let (_dir, mut app) = app();
     seed(&mut app);
-    let missing = book(
+    let booked = book(
         &mut app,
         "2026-09-21",
         "proj-a",
@@ -138,8 +139,8 @@ fn hour_type_rules_and_ambiguous_names() {
         NoteUpdate::Keep,
         false,
     )
-    .unwrap_err();
-    assert!(missing.to_string().contains("hourTypeId is required"));
+    .unwrap();
+    assert_eq!(booked.week.rows[0].hour_type_name, "Overtime");
 
     book(
         &mut app,
@@ -222,13 +223,13 @@ fn dry_run_rolls_back_and_copy_replaces() {
         false,
     )
     .unwrap_err();
-    let overtime = app.config().unwrap().projects[0].tasks[0]
-        .hour_types
-        .iter()
-        .find(|hour_type| hour_type.name == "Overtime")
-        .unwrap()
+    let overtime = app.config().unwrap().projects[0].tasks[0].hour_types[0]
         .id
         .clone();
+    assert_eq!(
+        app.config().unwrap().projects[0].tasks[0].hour_types[0].name,
+        "Overtime"
+    );
     book(
         &mut app,
         "2026-09-22",
@@ -336,21 +337,21 @@ fn migration_is_idempotent_and_dry_run_writes_nothing() {
     let report = app.migrate_from(&source, false).unwrap();
     assert_eq!(report.projects, 2);
     assert_eq!(report.weeks, 1);
-    assert!(report.rows >= 5);
+    assert_eq!(report.rows, 4);
+    assert_eq!(
+        app.config().unwrap().projects[1].tasks[0].hour_types.len(),
+        1
+    );
+    assert_eq!(
+        app.config().unwrap().projects[1].tasks[0].hour_types[0].name,
+        "Overtime"
+    );
     let again = app.migrate_from(&source, false).unwrap();
     assert_eq!(again.weeks, 1);
     assert_eq!(again.rows, report.rows);
     let week = app.week_view("2026-09-23").unwrap();
     assert!(week.exists);
-    assert_eq!(
-        build_export(&app),
-        std::fs::read_to_string(format!(
-            "{}/tests/fixtures/export-golden.json",
-            env!("CARGO_MANIFEST_DIR")
-        ))
-        .unwrap()
-        .replace("\r\n", "\n")
-    );
+    assert_collapsed_export(&build_export(&app));
 
     app.add_custom_project("2026-10-05", "Only local", None, false)
         .unwrap();
@@ -360,6 +361,37 @@ fn migration_is_idempotent_and_dry_run_writes_nothing() {
 
 fn build_export(app: &PreEbs) -> String {
     preebs_core::to_pretty_json(&app.export_week("2026-09-21").unwrap()).unwrap()
+}
+
+fn assert_collapsed_export(text: &str) {
+    assert!(text.ends_with('\n'));
+    let value: serde_json::Value = serde_json::from_str(text).unwrap();
+    assert_eq!(value["weekStart"], "2026-09-21");
+    assert_eq!(value["weekEnd"], "2026-09-25");
+    assert_eq!(value["totals"]["hours"], "31");
+    let days = value["days"].as_array().unwrap();
+    assert_eq!(days.len(), 5);
+    let design = |day: &serde_json::Value| {
+        day["projects"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|project| project["tasks"].as_array().unwrap().iter())
+            .find(|task| task["taskName"] == "Design")
+            .unwrap()
+            .clone()
+    };
+    let monday = design(&days[0]);
+    assert_eq!(monday["hourTypes"].as_array().unwrap().len(), 1);
+    assert_eq!(monday["hourTypes"][0]["hourTypeName"], "Overtime");
+    assert_eq!(monday["hourTypes"][0]["hourTypeId"], "ot-1");
+    assert_eq!(monday["hourTypes"][0]["hours"], "6");
+    assert_eq!(days[0]["totals"]["hours"], "15");
+    let friday = design(&days[4]);
+    assert_eq!(friday["hourTypes"].as_array().unwrap().len(), 1);
+    assert_eq!(friday["hourTypes"][0]["hours"], "8");
+    assert_eq!(days[1]["totals"]["hours"], "7,5");
+    assert_eq!(days[4]["totals"]["hours"], "8,5");
 }
 
 #[test]
@@ -461,28 +493,46 @@ fn custom_project_and_week_summary() {
 }
 
 #[test]
-fn cannot_remove_last_hour_type_and_names_resolve() {
+fn cannot_remove_the_only_hour_type_and_names_resolve() {
     let (_dir, mut app) = app();
     seed(&mut app);
     let error = app
-        .remove_hour_type(
-            DEFAULT_HOUR_TYPE_ID,
-            Some("proj-a"),
-            Some("task-build"),
-            false,
-        )
+        .remove_hour_type("Overtime", Some("Alpha"), Some("Design"), false)
         .unwrap_err();
     assert_eq!(error.exit_code(), 2);
-    app.remove_hour_type("Overtime", Some("Alpha"), Some("Design"), false)
-        .unwrap();
+    assert!(error.to_string().contains("exactly one hour type"));
     assert_eq!(
         app.config().unwrap().projects[0].tasks[0].hour_types.len(),
         1
     );
+    app.add_task("proj-a", "Docs", None, &[], Some("task-docs"), false)
+        .unwrap();
     let ambiguous = app
         .edit_hour_type(DEFAULT_HOUR_TYPE_ID, Some("Straight"), None, None, false)
         .unwrap_err();
     assert_eq!(ambiguous.exit_code(), 5);
+    let renamed = app
+        .edit_task(
+            "task-design",
+            preebs_core::FieldUpdate::Keep,
+            preebs_core::FieldUpdate::Set("Layout"),
+            Some("On-call"),
+            false,
+        )
+        .unwrap();
+    assert_eq!(renamed.label.as_deref(), Some("Layout"));
+    assert_eq!(renamed.hour_types[0].name, "On-call");
+    assert_eq!(renamed.name, "Design");
+    let cleared = app
+        .edit_task(
+            "Layout",
+            preebs_core::FieldUpdate::Keep,
+            preebs_core::FieldUpdate::Set(""),
+            None,
+            false,
+        )
+        .unwrap();
+    assert!(cleared.label.is_none());
 }
 
 #[test]

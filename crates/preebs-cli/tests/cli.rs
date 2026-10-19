@@ -122,24 +122,22 @@ fn json_flow_books_exports_and_rejects_conflicts() {
         ],
     );
 
-    let missing_type = preebs(root)
-        .args([
-            "--json",
-            "book",
-            "--date",
-            "2026-09-21",
-            "--project",
-            "proj-a",
-            "--task",
-            "Design",
-            "--hours",
-            "1",
-        ])
-        .assert()
-        .failure()
-        .code(2);
-    let stderr = String::from_utf8(missing_type.get_output().stderr.clone()).unwrap();
-    assert!(stderr.contains("hourTypeId is required"));
+    let shown = json_cmd(root, &["task", "list", "--project", "proj-a"]);
+    assert_eq!(shown["tasks"][0]["hourTypes"].as_array().unwrap().len(), 1);
+    assert_eq!(shown["tasks"][0]["hourTypes"][0]["name"], "Consulting");
+
+    json_cmd(
+        root,
+        &[
+            "task",
+            "edit",
+            "task-design",
+            "--label",
+            "Layout",
+            "--hour-type",
+            "Overtime",
+        ],
+    );
 
     let booking = json_cmd(
         root,
@@ -150,9 +148,7 @@ fn json_flow_books_exports_and_rejects_conflicts() {
             "--project",
             "Alpha Label",
             "--task",
-            "Design",
-            "--hour-type",
-            "Overtime",
+            "Layout",
             "--hours",
             "7,5",
             "--note",
@@ -174,8 +170,6 @@ fn json_flow_books_exports_and_rejects_conflicts() {
             "proj-a",
             "--task",
             "task-design",
-            "--hour-type",
-            "Overtime",
             "--hours",
             "4",
         ],
@@ -195,10 +189,8 @@ fn json_flow_books_exports_and_rejects_conflicts() {
             "proj-a",
             "--task",
             "Design",
-            "--hour-type",
-            "Consulting",
             "--hours",
-            "8",
+            "9",
         ])
         .assert()
         .failure()
@@ -267,6 +259,8 @@ fn json_flow_books_exports_and_rejects_conflicts() {
     let file = fs::read_to_string(&out).unwrap();
     assert!(file.contains("\"hours\": \"4\""));
     assert!(file.contains("Overtime"));
+    assert!(file.contains("Design"));
+    assert!(!file.contains("Layout"));
     assert!(!file.contains("Accessibility"));
     preebs(root)
         .args([
@@ -296,7 +290,12 @@ fn json_flow_books_exports_and_rejects_conflicts() {
             .as_array()
             .unwrap()
             .len(),
-        2
+        1
+    );
+    assert_eq!(raw["config"]["projects"][0]["tasks"][0]["label"], "Layout");
+    assert_eq!(
+        raw["config"]["projects"][0]["tasks"][0]["hourTypes"][0]["name"],
+        "Overtime"
     );
 
     json_cmd(root, &["project", "rm", "proj-b"]);
@@ -337,11 +336,19 @@ fn migrate_then_export_matches_golden() {
             output.to_str().unwrap(),
         ],
     );
-    let golden = fs::read_to_string(format!(
-        "{}/../preebs-core/tests/fixtures/export-golden.json",
-        env!("CARGO_MANIFEST_DIR")
-    ))
-    .unwrap()
-    .replace("\r\n", "\n");
-    assert_eq!(fs::read_to_string(output).unwrap(), golden);
+    let text = fs::read_to_string(output).unwrap().replace("\r\n", "\n");
+    let value: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(value["weekStart"], "2026-09-21");
+    assert_eq!(value["totals"]["hours"], "31");
+    assert!(text.ends_with('\n'));
+    let design = value["days"][0]["projects"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|project| project["tasks"].as_array().unwrap().iter())
+        .find(|task| task["taskName"] == "Design")
+        .unwrap();
+    assert_eq!(design["hourTypes"].as_array().unwrap().len(), 1);
+    assert_eq!(design["hourTypes"][0]["hourTypeName"], "Overtime");
+    assert_eq!(design["hourTypes"][0]["hours"], "6");
 }

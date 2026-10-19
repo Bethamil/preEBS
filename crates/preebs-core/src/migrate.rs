@@ -88,6 +88,8 @@ struct LooseProject {
     #[serde(default)]
     label: Option<String>,
     #[serde(default)]
+    archived: bool,
+    #[serde(default)]
     tasks: Vec<LooseTask>,
 }
 
@@ -98,6 +100,8 @@ struct LooseTask {
     id: String,
     #[serde(default)]
     name: String,
+    #[serde(default)]
+    label: Option<String>,
     #[serde(default)]
     hour_types: Vec<LooseHourType>,
 }
@@ -229,12 +233,14 @@ fn config_from_loose(value: &Value) -> Result<UserConfig> {
             id: project.id,
             name: project.name,
             label: project.label,
+            archived: project.archived,
             tasks: project
                 .tasks
                 .into_iter()
                 .map(|task| Task {
                     id: task.id,
                     name: task.name,
+                    label: task.label,
                     hour_types: task
                         .hour_types
                         .into_iter()

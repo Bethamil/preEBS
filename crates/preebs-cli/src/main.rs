@@ -169,10 +169,18 @@ enum ProjectCmd {
     Edit {
         /// Project id, or a unique name or label.
         id: String,
+        /// EBS project name.
         #[arg(long)]
         name: Option<String>,
+        /// Display name shown in the app. --label "" clears it.
         #[arg(long)]
         label: Option<String>,
+        /// Hide the project until archived projects are shown.
+        #[arg(long, conflicts_with = "unarchive")]
+        archive: bool,
+        /// Show the project in the normal list again.
+        #[arg(long)]
+        unarchive: bool,
     },
     /// Remove a project from config. Saved week rows are kept.
     Rm { id: String },
@@ -185,23 +193,35 @@ enum TaskCmd {
         #[arg(long)]
         project: String,
     },
-    /// Add a task. Repeat --hour-type to attach more than one. The default is used when omitted.
+    /// Add a task. It keeps exactly one hour type. Extra --hour-type values collapse like import.
     Add {
         #[arg(long)]
         project: String,
+        /// Exact EBS task name.
         #[arg(long)]
         name: String,
+        /// Optional label shown in the app instead of the EBS name. Export keeps --name.
+        #[arg(long)]
+        label: Option<String>,
+        /// Hour type name. Repeat to pass several; only one is stored.
         #[arg(long = "hour-type")]
         hour_type: Vec<String>,
         #[arg(long)]
         id: Option<String>,
     },
-    /// Rename a task.
+    /// Change the EBS name, the display label, or the single hour type.
     Edit {
-        /// Task id, or a unique task name.
+        /// Task id, or a unique task name or label.
         id: String,
+        /// Exact EBS task name.
         #[arg(long)]
         name: Option<String>,
+        /// Display label. --label "" clears it. Omitting --label leaves it.
+        #[arg(long)]
+        label: Option<String>,
+        /// Rename the task's only hour type. The hour type id is kept.
+        #[arg(long = "hour-type")]
+        hour_type: Option<String>,
     },
     /// Remove a task from config. Saved week rows are kept.
     Rm { id: String },
@@ -216,7 +236,7 @@ enum HourTypeCmd {
         #[arg(long)]
         task: String,
     },
-    /// Add an hour type to a task.
+    /// Rejected. A task already has its one hour type; use hour-type edit.
     Add {
         #[arg(long)]
         project: String,
@@ -237,7 +257,7 @@ enum HourTypeCmd {
         #[arg(long)]
         task: Option<String>,
     },
-    /// Remove an hour type. The last hour type on a task cannot be removed.
+    /// Rejected. A task's only hour type cannot be removed.
     Rm {
         id: String,
         #[arg(long)]
@@ -422,9 +442,27 @@ fn run(cli: &Cli) -> preebs_core::Result<()> {
                     &format!("Added project {} ({})", project.name, project.id),
                 );
             }
-            ProjectCmd::Edit { id, name, label } => {
-                let project =
-                    app.edit_project(id, field(name.as_deref()), field(label.as_deref()), dry)?;
+            ProjectCmd::Edit {
+                id,
+                name,
+                label,
+                archive,
+                unarchive,
+            } => {
+                let archived = if *archive {
+                    Some(true)
+                } else if *unarchive {
+                    Some(false)
+                } else {
+                    None
+                };
+                let project = app.edit_project(
+                    id,
+                    field(name.as_deref()),
+                    field(label.as_deref()),
+                    archived,
+                    dry,
+                )?;
                 respond(
                     json,
                     dry,
@@ -460,10 +498,18 @@ fn run(cli: &Cli) -> preebs_core::Result<()> {
             TaskCmd::Add {
                 project,
                 name,
+                label,
                 hour_type,
                 id,
             } => {
-                let task = app.add_task(project, name, hour_type, id.as_deref(), dry)?;
+                let task = app.add_task(
+                    project,
+                    name,
+                    label.as_deref(),
+                    hour_type,
+                    id.as_deref(),
+                    dry,
+                )?;
                 respond(
                     json,
                     dry,
@@ -471,8 +517,19 @@ fn run(cli: &Cli) -> preebs_core::Result<()> {
                     &format!("Added task {} ({})", task.name, task.id),
                 );
             }
-            TaskCmd::Edit { id, name } => {
-                let task = app.edit_task(id, name.as_deref(), dry)?;
+            TaskCmd::Edit {
+                id,
+                name,
+                label,
+                hour_type,
+            } => {
+                let task = app.edit_task(
+                    id,
+                    field(name.as_deref()),
+                    field(label.as_deref()),
+                    hour_type.as_deref(),
+                    dry,
+                )?;
                 respond(
                     json,
                     dry,
@@ -810,7 +867,12 @@ fn human_projects(projects: &[preebs_core::Project]) -> String {
             continue;
         }
         for task in &project.tasks {
-            lines.push(format!("  {}  {}", task.id, task.name));
+            let label = task
+                .label
+                .as_ref()
+                .map(|label| format!(" [{label}]"))
+                .unwrap_or_default();
+            lines.push(format!("  {}  {}{label}", task.id, task.name));
             for hour_type in &task.hour_types {
                 lines.push(format!("      {}  {}", hour_type.id, hour_type.name));
             }
@@ -833,7 +895,12 @@ fn human_tasks(project: &preebs_core::Project) -> String {
                     .map(|hour_type| hour_type.name.as_str())
                     .collect::<Vec<_>>()
                     .join(", ");
-                format!("{}  {}  ({})", task.id, task.name, hours)
+                let label = task
+                    .label
+                    .as_ref()
+                    .map(|label| format!(" [{label}]"))
+                    .unwrap_or_default();
+                format!("{}  {}{label}  ({})", task.id, task.name, hours)
             })
             .collect::<Vec<_>>()
             .join("\n")

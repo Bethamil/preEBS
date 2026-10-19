@@ -22,7 +22,27 @@ pub fn default_hour_type(name: &str) -> HourType {
     HourType { id, name }
 }
 
-/// Pad and snap `maxHoursPerDay`. Does not collapse hour types (see the plan).
+/// One hour type per task, matching `normalizeSingleHourType` in the old store.
+///
+/// Empty names are already dropped by the caller. An empty list becomes the
+/// configured default. Otherwise the first hour type whose name is not
+/// `Straight Time` (case-insensitive) wins; if every name is that default,
+/// the first hour type is kept. The surviving id and name are unchanged.
+pub fn collapse_hour_types(hour_types: Vec<HourType>, default_name: &str) -> Vec<HourType> {
+    if hour_types.is_empty() {
+        return vec![default_hour_type(default_name)];
+    }
+    let index = hour_types
+        .iter()
+        .position(|hour_type| !names_equal(&hour_type.name, DEFAULT_HOUR_TYPE_NAME))
+        .unwrap_or(0);
+    vec![hour_types
+        .into_iter()
+        .nth(index)
+        .expect("index is in range")]
+}
+
+/// Pad and snap `maxHoursPerDay`, and collapse each task to one hour type.
 pub fn normalize_config(config: UserConfig) -> UserConfig {
     let max_hours_per_day = std::array::from_fn(|index| {
         config
@@ -84,6 +104,7 @@ fn normalize_project(project: Project, default_name: &str) -> Option<Project> {
         id: if id.is_empty() { new_id() } else { id },
         name,
         label,
+        archived: project.archived,
         tasks,
     })
 }
@@ -93,7 +114,7 @@ fn normalize_task(task: Task, default_name: &str) -> Option<Task> {
     if name.is_empty() {
         return None;
     }
-    let mut hour_types: Vec<HourType> = task
+    let hour_types: Vec<HourType> = task
         .hour_types
         .into_iter()
         .filter_map(|hour_type| {
@@ -108,26 +129,19 @@ fn normalize_task(task: Task, default_name: &str) -> Option<Task> {
             })
         })
         .collect();
-    if hour_types.is_empty() {
-        hour_types.push(default_hour_type(default_name));
-    }
-    dedupe_hour_type_ids(&mut hour_types);
+    let hour_types = collapse_hour_types(hour_types, default_name);
+    let label = task
+        .label
+        .as_deref()
+        .map(safe_trim)
+        .filter(|label| !label.is_empty());
     let id = safe_trim(&task.id);
     Some(Task {
         id: if id.is_empty() { new_id() } else { id },
         name,
+        label,
         hour_types,
     })
-}
-
-fn dedupe_hour_type_ids(hour_types: &mut [HourType]) {
-    let mut seen = HashSet::new();
-    for hour_type in hour_types.iter_mut() {
-        if !seen.insert(hour_type.id.clone()) {
-            hour_type.id = new_id();
-            seen.insert(hour_type.id.clone());
-        }
-    }
 }
 
 pub fn normalize_max_from_raw(values: &[f64]) -> [Hours; 5] {
@@ -143,18 +157,14 @@ pub fn normalize_max_from_raw(values: &[f64]) -> [Hours; 5] {
 struct NameMaps<'a> {
     projects: HashMap<&'a str, &'a Project>,
     tasks: HashMap<&'a str, &'a Task>,
-    hour_types: HashMap<&'a str, &'a HourType>,
     tasks_by_project: HashMap<&'a str, HashSet<&'a str>>,
-    hour_types_by_task: HashMap<&'a str, HashSet<&'a str>>,
 }
 
 fn name_maps(config: &UserConfig) -> NameMaps<'_> {
     let mut maps = NameMaps {
         projects: HashMap::new(),
         tasks: HashMap::new(),
-        hour_types: HashMap::new(),
         tasks_by_project: HashMap::new(),
-        hour_types_by_task: HashMap::new(),
     };
     for project in &config.projects {
         maps.projects.insert(project.id.as_str(), project);
@@ -164,16 +174,6 @@ fn name_maps(config: &UserConfig) -> NameMaps<'_> {
         );
         for task in &project.tasks {
             maps.tasks.insert(task.id.as_str(), task);
-            maps.hour_types_by_task.insert(
-                task.id.as_str(),
-                task.hour_types
-                    .iter()
-                    .map(|hour_type| hour_type.id.as_str())
-                    .collect(),
-            );
-            for hour_type in &task.hour_types {
-                maps.hour_types.insert(hour_type.id.as_str(), hour_type);
-            }
         }
     }
     maps
@@ -195,56 +195,49 @@ pub fn normalize_week_rows(
         }
         let project_ref = maps.projects.get(project_id.as_str()).copied();
         let task_ref = maps.tasks.get(task_id.as_str()).copied();
-        let hour_type_ref = maps.hour_types.get(hour_type_id.as_str()).copied();
-        let known = project_ref.is_some()
+        let on_project = project_ref.is_some()
             && task_ref.is_some()
-            && hour_type_ref.is_some()
             && maps
                 .tasks_by_project
                 .get(project_id.as_str())
-                .is_some_and(|ids| ids.contains(task_id.as_str()))
-            && maps
-                .hour_types_by_task
-                .get(task_id.as_str())
-                .is_some_and(|ids| ids.contains(hour_type_id.as_str()));
-        let project_name = if known {
-            project_ref
-                .map(|project| project.name.clone())
-                .unwrap_or_default()
+                .is_some_and(|ids| ids.contains(task_id.as_str()));
+        // A configured task has one hour type. Rows that still name an older
+        // hour type are rewritten onto it and merged below.
+        let (project_name, task_name, hour_type_id, hour_type_name) = if on_project {
+            let project = project_ref.expect("on_project");
+            let task = task_ref.expect("on_project");
+            let Some(hour_type) = task.hour_types.first() else {
+                continue;
+            };
+            (
+                project.name.clone(),
+                task.name.clone(),
+                hour_type.id.clone(),
+                hour_type.name.clone(),
+            )
         } else {
-            let from_row = safe_trim(&row.project_name);
-            if !from_row.is_empty() {
-                from_row
-            } else {
-                custom_names
-                    .get(&project_id)
-                    .cloned()
-                    .filter(|name| !name.is_empty())
-                    .unwrap_or_else(|| "Custom Project".to_string())
-            }
-        };
-        let task_name = if known {
-            task_ref.map(|task| task.name.clone()).unwrap_or_default()
-        } else {
-            safe_trim(&row.task_name)
-        };
-        let hour_type_name = if known {
-            // Prefer the owning task's name over the global id map (duplicate default ids).
-            task_ref
-                .and_then(|task| {
-                    task.hour_types
-                        .iter()
-                        .find(|hour_type| hour_type.id == hour_type_id)
-                        .map(|hour_type| hour_type.name.clone())
-                })
-                .unwrap_or_default()
-        } else {
-            let from_row = safe_trim(&row.hour_type_name);
-            if from_row.is_empty() {
-                DEFAULT_HOUR_TYPE_NAME.to_string()
-            } else {
-                from_row
-            }
+            let project_name = {
+                let from_row = safe_trim(&row.project_name);
+                if !from_row.is_empty() {
+                    from_row
+                } else {
+                    custom_names
+                        .get(&project_id)
+                        .cloned()
+                        .filter(|name| !name.is_empty())
+                        .unwrap_or_else(|| "Custom Project".to_string())
+                }
+            };
+            let task_name = safe_trim(&row.task_name);
+            let hour_type_name = {
+                let from_row = safe_trim(&row.hour_type_name);
+                if from_row.is_empty() {
+                    DEFAULT_HOUR_TYPE_NAME.to_string()
+                } else {
+                    from_row
+                }
+            };
+            (project_name, task_name, hour_type_id, hour_type_name)
         };
         if project_name.is_empty() || hour_type_name.is_empty() {
             continue;

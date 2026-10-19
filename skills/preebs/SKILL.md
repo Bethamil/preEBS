@@ -39,8 +39,8 @@ preebs config set --default-hour-type "Consulting" --json
 preebs project list --json
 preebs project add --name "EBS name" --label "Human name" --json
 preebs task add --project PROJECT_ID --name "Design" --json
-preebs task add --project PROJECT_ID --name "Build" --hour-type "Straight Time" --hour-type "Overtime" --json
-preebs hour-type add --project PROJECT_ID --task TASK_ID --name "Overtime" --json
+preebs task add --project PROJECT_ID --name "Build" --label "Bouw" --hour-type "Straight Time" --json
+preebs task edit TASK_ID --label "" --hour-type "Overtime" --json
 
 preebs weeks --json
 preebs week show --date 2026-09-25 --json
@@ -75,11 +75,11 @@ Pass `--json` whenever a program will read the result. Add `--dry-run` to valida
 - Hours are `0` through `24` in steps of `0.5`. Both `7.5` and `7,5` are accepted.
 - Only Monday through Friday can be booked.
 - The task must belong to the project. The hour type must belong to the task.
-- Omit `--hour-type` only when the task has exactly one hour type.
+- A task has exactly one hour type, so `--hour-type` may be omitted. The name must still be that hour type when you pass it.
 - A booking that would exceed `maxHoursPerDay` is rejected and changes nothing.
 - `--hours 0` clears that day. The row can remain.
 - A note belongs to the whole row. Omit `--note` to keep it. `--note ""` clears it.
-- `--label ""` clears a project label. Omitting `--label` leaves it.
+- `--label ""` clears a project or task display label. Omitting `--label` leaves it. Export uses the EBS name, not the label.
 
 Exit codes: `0` ok, `1` unexpected, `2` validation or usage, `3` not found, `4` conflict, `5` ambiguous name. With `--json`, stderr is `{ "error", "code" }`.
 
@@ -94,7 +94,7 @@ Exit codes: `0` ok, `1` unexpected, `2` validation or usage, `3` not found, `4` 
 ## Config transfer and migration
 
 - `preebs config export` writes `preebs-config` version 1. It includes `defaultHourTypeName`. It does not overwrite.
-- `preebs config import <file>` replaces config and keeps weeks. Old files without `defaultHourTypeName` import as `Straight Time`. A file that already names an hour type keeps that name; it is user data.
+- `preebs config import <file>` replaces config and keeps weeks. Old files without `defaultHourTypeName` import as `Straight Time`. A missing task `label` stays empty. Several hour types on one task collapse to the first name that is not `Straight Time`.
 - `preebs migrate` copies a legacy `preebs-db.json` once. It is safe to run again. Config is replaced. Weeks in the file are upserted. Other SQLite weeks stay. The JSON file is not deleted.
 
 Changing the default hour type does not rename hour types already stored on tasks.

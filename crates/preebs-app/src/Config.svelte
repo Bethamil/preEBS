@@ -1,30 +1,88 @@
 <script>
   import { open, save } from "@tauri-apps/plugin-dialog";
   import { api, errorText, inTauri } from "./lib/api.js";
-  import { DAYS, collapse, formatHours, newHourType, parseHours, uid } from "./lib/format.js";
+  import { DAYS, collapse, displayProject, displayTask, formatHours, newHourType, parseHours, uid } from "./lib/format.js";
 
-  let { reloadToken, onnotice } = $props();
+  let { reloadToken, dbPath = "", onnotice } = $props();
+
+  const DOTS = ["#4ade80", "#c084fc", "#94a3b8", "#60a5fa", "#fbbf24", "#fb7185"];
+
   let config = $state(null);
+  let tab = $state("projects");
   let query = $state("");
+  let showArchived = $state(false);
+  let selectedId = $state("");
+  let menuOpen = $state(false);
+  let editor = $state(null);
+  let editorError = $state("");
   let error = $state("");
-  let status = $state("");
+  let status = $state("Alles opgeslagen");
+  let dirty = $state(false);
+
+  let saveTimer = 0;
+  let editVersion = 0;
+  let nameInput = $state(null);
+
   let visibleProjects = $derived.by(() => {
-    const needle = query.trim().toLowerCase();
     if (!config) return [];
-    if (!needle) return config.projects;
+    const needle = query.trim().toLowerCase();
     return config.projects.filter((project) => {
-      const hay = [project.name, project.label, ...project.tasks.flatMap((task) => [task.name, ...task.hourTypes.map((hour) => hour.name)])]
+      if (project.archived && !showArchived) return false;
+      if (!needle) return true;
+      const hay = [
+        project.name,
+        project.label,
+        ...project.tasks.flatMap((task) => [task.name, task.label, task.hourTypes?.[0]?.name]),
+      ]
+        .filter(Boolean)
         .join(" ")
         .toLowerCase();
       return hay.includes(needle);
     });
   });
 
+  let selected = $derived(config?.projects?.find((project) => project.id === selectedId) ?? null);
+
+  let hourChoices = $derived.by(() => {
+    const names = [];
+    const seen = new Set();
+    const add = (name) => {
+      const trimmed = collapse(name);
+      const key = trimmed.toLowerCase();
+      if (!trimmed || seen.has(key)) return;
+      seen.add(key);
+      names.push(trimmed);
+    };
+    add(config?.defaultHourTypeName || "Straight Time");
+    for (const project of config?.projects ?? []) {
+      for (const task of project.tasks) add(task.hourTypes?.[0]?.name);
+    }
+    if (editor?.hourTypeName) add(editor.hourTypeName);
+    return names;
+  });
+
+  function taskCount(project) {
+    const count = project.tasks.length;
+    return count === 1 ? "1 taak" : `${count} taken`;
+  }
+
+  function dot(project) {
+    const index = config?.projects?.findIndex((item) => item.id === project.id) ?? 0;
+    return DOTS[(index < 0 ? 0 : index) % DOTS.length];
+  }
+
+  function specialType(name) {
+    const fallback = collapse(config?.defaultHourTypeName || "Straight Time").toLowerCase();
+    return collapse(name).toLowerCase() !== fallback;
+  }
+
   async function load() {
     try {
       config = await api.getConfig();
       error = "";
-      status = "Geladen";
+      if (!config.projects.some((project) => project.id === selectedId)) {
+        selectedId = config.projects.find((project) => !project.archived)?.id ?? config.projects[0]?.id ?? "";
+      }
     } catch (caught) {
       error = errorText(caught);
     }
@@ -35,79 +93,144 @@
     void load();
   });
 
-  function move(list, index, delta) {
-    const next = index + delta;
-    if (next < 0 || next >= list.length) return;
-    const [item] = list.splice(index, 1);
-    list.splice(next, 0, item);
+  $effect(() => {
+    if (editor && nameInput) nameInput.focus();
+  });
+
+  function markDirty() {
+    editVersion += 1;
+    const version = editVersion;
+    dirty = true;
+    status = "Niet opgeslagen";
+    window.clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(() => void persist(version), 450);
   }
 
-  async function saveConfig() {
+  async function persist(version) {
     if (!config) return;
+    const body = JSON.parse(JSON.stringify(config));
+    status = "Opslaan…";
     try {
-      config = await api.saveConfig(config);
-      status = "Opgeslagen";
-      error = "";
-      onnotice("Configuratie opgeslagen.");
-    } catch (caught) {
-      error = errorText(caught);
-      onnotice(error);
-    }
-  }
-
-  async function saveSettings() {
-    if (!config) return;
-    const maxHours = [];
-    for (const value of config.maxHoursPerDay) {
-      const parsed = parseHours(String(value).replace(".", ","));
-      if (parsed === null) {
-        error = "Max uren moeten tussen 0 en 24 liggen, in stappen van 0,5.";
-        return;
+      const saved = await api.saveConfig(body);
+      if (version === editVersion) {
+        config = saved;
+        dirty = false;
+        status = "Alles opgeslagen";
+        error = "";
       }
-      maxHours.push(parsed);
-    }
-    const name = collapse(config.defaultHourTypeName);
-    if (!name) {
-      error = "Een naam voor het standaard uurtype is verplicht.";
-      return;
-    }
-    try {
-      config = await api.setSettings(maxHours, name);
-      status = "Opgeslagen";
-      error = "";
     } catch (caught) {
+      status = "Niet opgeslagen";
       error = errorText(caught);
     }
   }
 
   function addProject() {
-    config.projects.push({ id: uid(), name: "Nieuw project", label: null, tasks: [] });
-    config.projects = config.projects;
-  }
-
-  function addTask(project) {
-    project.tasks.push({
+    const project = {
       id: uid(),
-      name: "Nieuwe taak",
-      hourTypes: [newHourType(config.defaultHourTypeName, [])],
-    });
-    config.projects = config.projects;
+      name: "Nieuw project",
+      label: null,
+      archived: false,
+      tasks: [],
+    };
+    config.projects = [...config.projects, project];
+    selectedId = project.id;
+    menuOpen = false;
+    markDirty();
   }
 
-  function addHourType(task) {
-    const created = newHourType(config.defaultHourTypeName, task.hourTypes);
-    if (task.hourTypes.some((item) => item.id === created.id)) created.id = uid();
-    task.hourTypes.push(created);
-    config.projects = config.projects;
+  function moveProject(delta) {
+    if (!selected) return;
+    const index = config.projects.findIndex((project) => project.id === selected.id);
+    const next = index + delta;
+    if (next < 0 || next >= config.projects.length) return;
+    const copy = [...config.projects];
+    const [item] = copy.splice(index, 1);
+    copy.splice(next, 0, item);
+    config.projects = copy;
+    menuOpen = false;
+    markDirty();
   }
 
-  function removeHourType(task, index) {
-    if (task.hourTypes.length <= 1) {
-      error = "Een taak moet minstens één uurtype houden.";
+  function toggleArchive() {
+    if (!selected) return;
+    selected.archived = !selected.archived;
+    menuOpen = false;
+    markDirty();
+  }
+
+  function removeProject() {
+    if (!selected) return;
+    config.projects = config.projects.filter((project) => project.id !== selected.id);
+    selectedId = visibleProjects.find((project) => project.id !== selected.id)?.id ?? "";
+    menuOpen = false;
+    markDirty();
+  }
+
+  function openEditor(task = null) {
+    const hour = task?.hourTypes?.[0];
+    editorError = "";
+    editor = {
+      taskId: task?.id ?? null,
+      name: task?.name ?? "",
+      label: task?.label ?? "",
+      hourTypeName: hour?.name || config.defaultHourTypeName || "Straight Time",
+      hourTypeId: hour?.id ?? "",
+      useCustom: false,
+      customName: "",
+    };
+    menuOpen = false;
+  }
+
+  function commitEditor() {
+    if (!selected || !editor) return;
+    const name = collapse(editor.name);
+    const hourName = collapse(editor.useCustom ? editor.customName : editor.hourTypeName);
+    if (!name) {
+      editorError = "Taaknaam in EBS is verplicht.";
       return;
     }
-    task.hourTypes.splice(index, 1);
+    if (!hourName) {
+      editorError = "Kies een uursoort.";
+      return;
+    }
+    const label = collapse(editor.label);
+    const existing = selected.tasks.find((task) => task.id === editor.taskId);
+    if (existing) {
+      existing.name = name;
+      existing.label = label || null;
+      const current = existing.hourTypes?.[0];
+      if (current && collapse(current.name).toLowerCase() === hourName.toLowerCase()) {
+        current.name = hourName;
+        existing.hourTypes = [current];
+      } else {
+        existing.hourTypes = [newHourType(hourName, [])];
+      }
+    } else {
+      selected.tasks = [
+        ...selected.tasks,
+        {
+          id: uid(),
+          name,
+          label: label || null,
+          hourTypes: [newHourType(hourName, [])],
+        },
+      ];
+    }
     config.projects = config.projects;
+    editor = null;
+    markDirty();
+  }
+
+  function setMax(index, raw) {
+    const parsed = parseHours(raw);
+    if (parsed === null) {
+      error = "Max uren moeten tussen 0 en 24 liggen, in stappen van 0,5.";
+      return false;
+    }
+    config.maxHoursPerDay[index] = parsed;
+    error = "";
+    markDirty();
+    return true;
   }
 
   async function exportConfig() {
@@ -133,6 +256,8 @@
       if (!path || Array.isArray(path)) return;
       const text = await api.readTextFile(path);
       config = await api.importConfigText(text);
+      dirty = false;
+      status = "Alles opgeslagen";
       onnotice("Configuratie geïmporteerd. Weken zijn bewaard.");
     } catch (caught) {
       onnotice(errorText(caught));
@@ -152,113 +277,252 @@
   }
 </script>
 
-<section class="screen" aria-labelledby="config-title">
-  <div class="page-head">
-    <div>
-      <h1 id="config-title">Instellingen</h1>
-      <p class="sub">Projecten, taken en uurtypes. Het standaard uurtype wijzigen herschrijft bestaande taken niet.</p>
+<section class="screen config-screen" aria-labelledby="config-title">
+  <header class="config-head">
+    <h1 id="config-title">Instellingen</h1>
+    <p class="sub">Beheer je projecten, taken en werkweek.</p>
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab" class:active={tab === "projects"} role="tab" aria-selected={tab === "projects"} onclick={() => (tab = "projects")}>Projecten en taken</button>
+      <button type="button" class="tab" class:active={tab === "week"} role="tab" aria-selected={tab === "week"} onclick={() => (tab = "week")}>Werkweek</button>
+      <button type="button" class="tab" class:active={tab === "data"} role="tab" aria-selected={tab === "data"} onclick={() => (tab = "data")}>Gegevens</button>
     </div>
-    <div class="head-actions">
-      <button type="button" class="btn btn-primary" onclick={saveConfig}>Configuratie opslaan</button>
-      <button type="button" class="btn" onclick={exportConfig}>Exporteer</button>
-      <button type="button" class="btn" onclick={importConfig}>Importeer</button>
-      <button type="button" class="btn" onclick={migrate}>Migreer JSON</button>
-    </div>
-  </div>
-  {#if error}<p class="banner danger" role="alert">{error}</p>{/if}
-  {#if status}<p class="sub">{status}</p>{/if}
+  </header>
 
-  {#if config}
-    <form
-      class="settings"
-      onsubmit={(event) => {
-        event.preventDefault();
-        void saveSettings();
-      }}
-    >
-      <label class="grow">
-        Standaard uurtype voor nieuwe taken
-        <input bind:value={config.defaultHourTypeName} />
-      </label>
-      <fieldset>
-        <legend>Max uren per dag</legend>
-        <div class="max-grid">
-          {#each DAYS as day, index (day)}
+  {#if error && tab !== "projects"}<p class="banner danger" role="alert">{error}</p>{/if}
+
+  {#if config && tab === "projects"}
+    <div class="settings-layout">
+      <section class="card settings-panel" aria-label="Projecten">
+        <div class="panel-title">
+          <h2>Projecten</h2>
+          <button type="button" class="icon-btn" aria-label="Project toevoegen" onclick={addProject}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" stroke-linecap="round" />
+            </svg>
+          </button>
+        </div>
+        <label class="search">
+          <span class="sr">Zoek project</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <circle cx="11" cy="11" r="6" />
+            <path d="m20 20-3.5-3.5" stroke-linecap="round" />
+          </svg>
+          <input bind:value={query} placeholder="Zoek project..." />
+        </label>
+        <ul class="project-list">
+          {#each visibleProjects as project (project.id)}
+            <li>
+              <button
+                type="button"
+                class="project-row"
+                class:selected={project.id === selectedId}
+                class:archived={project.archived}
+                onclick={() => {
+                  selectedId = project.id;
+                  menuOpen = false;
+                }}
+              >
+                <span class="dot" style="background: {dot(project)}"></span>
+                <span>
+                  <span class="row-name">{displayProject(project)}</span>
+                  <span class="row-meta">{taskCount(project)}</span>
+                </span>
+              </button>
+            </li>
+          {/each}
+          {#if visibleProjects.length === 0}
+            <li class="row-meta empty-list">Geen projecten</li>
+          {/if}
+        </ul>
+        <button type="button" class="archive-toggle" aria-pressed={showArchived} onclick={() => (showArchived = !showArchived)}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+            <path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          Toon gearchiveerde projecten
+        </button>
+      </section>
+
+      <section class="card settings-panel" aria-label={selected ? displayProject(selected) : "Project"}>
+        {#if selected}
+          <div class="panel-title">
+            <h2>{displayProject(selected)}</h2>
+            <div class="menu-anchor">
+              <button type="button" class="icon-btn" aria-label="Projectopties" aria-expanded={menuOpen} onclick={() => (menuOpen = !menuOpen)}>…</button>
+              {#if menuOpen}
+                <div class="menu" role="menu">
+                  <button type="button" class="menu-item" onclick={() => moveProject(-1)}>Omhoog</button>
+                  <button type="button" class="menu-item" onclick={() => moveProject(1)}>Omlaag</button>
+                  <button type="button" class="menu-item" onclick={toggleArchive}>{selected.archived ? "Dearchiveren" : "Archiveren"}</button>
+                  <button type="button" class="menu-item menu-danger" onclick={removeProject}>Verwijderen</button>
+                </div>
+              {/if}
+            </div>
+          </div>
+
+          <div class="field-row">
             <label>
-              {day}
+              Weergavenaam
               <input
-                value={formatHours(config.maxHoursPerDay[index]) || "0"}
-                onchange={(event) => {
-                  const parsed = parseHours(event.currentTarget.value);
-                  if (parsed === null) {
-                    error = "Max uren moeten tussen 0 en 24 liggen, in stappen van 0,5.";
-                    event.currentTarget.value = formatHours(config.maxHoursPerDay[index]) || "0";
-                    return;
-                  }
-                  config.maxHoursPerDay[index] = parsed;
-                  void saveSettings();
+                value={selected.label ?? ""}
+                oninput={(event) => {
+                  selected.label = event.currentTarget.value || null;
+                  markDirty();
                 }}
               />
             </label>
-          {/each}
-        </div>
-      </fieldset>
-      <button type="submit" class="btn">Instellingen opslaan</button>
-    </form>
-
-    <label>
-      Configuratie zoeken
-      <input bind:value={query} placeholder="Project, taak of uurtype" />
-    </label>
-
-    <div class="projects">
-      {#each visibleProjects as project (project.id)}
-        <article>
-          <header>
             <label>
-              EBS-naam
-              <input bind:value={project.name} />
+              Projectnaam in EBS
+              <input bind:value={selected.name} oninput={markDirty} />
+              <span class="hint">De EBS-naam wordt gebruikt bij export.</span>
             </label>
-            <label>
-              Label
-              <input
-                value={project.label ?? ""}
-                oninput={(event) => (project.label = event.currentTarget.value || null)}
-              />
-            </label>
-            <div class="row-actions">
-              <button type="button" aria-label="Project omhoog" onclick={() => move(config.projects, config.projects.indexOf(project), -1)}>Omhoog</button>
-              <button type="button" aria-label="Project omlaag" onclick={() => move(config.projects, config.projects.indexOf(project), 1)}>Omlaag</button>
-              <button type="button" onclick={() => { config.projects = config.projects.filter((item) => item.id !== project.id); }}>Verwijder</button>
-            </div>
-          </header>
-          {#each project.tasks as task (task.id)}
-            <div class="task">
-              <label>
-                Taak
-                <input bind:value={task.name} />
-              </label>
-              <div class="hours-edit">
-                {#each task.hourTypes as hourType, hourIndex (hourType.id)}
-                  <label>
-                    Uurtype
-                    <input bind:value={hourType.name} />
-                  </label>
-                  <button type="button" aria-label="Uurtype verwijderen" disabled={task.hourTypes.length <= 1} onclick={() => removeHourType(task, hourIndex)}>×</button>
-                {/each}
-                <button type="button" onclick={() => addHourType(task)}>Uurtype toevoegen</button>
-              </div>
-              <div class="row-actions">
-                <button type="button" aria-label="Taak omhoog" onclick={() => move(project.tasks, project.tasks.indexOf(task), -1)}>Omhoog</button>
-                <button type="button" aria-label="Taak omlaag" onclick={() => move(project.tasks, project.tasks.indexOf(task), 1)}>Omlaag</button>
-                <button type="button" onclick={() => { project.tasks = project.tasks.filter((item) => item.id !== task.id); config.projects = config.projects; }}>Taak verwijderen</button>
-              </div>
-            </div>
-          {/each}
-          <button type="button" class="add-row" onclick={() => addTask(project)}>+ Taak toevoegen</button>
-        </article>
-      {/each}
+          </div>
+
+          <div class="task-head">
+            <h3>Taken</h3>
+            <button type="button" class="btn btn-outline" onclick={() => openEditor()}>
+              <span aria-hidden="true">+</span> Taak toevoegen
+            </button>
+          </div>
+          <table class="task-table">
+            <thead>
+              <tr>
+                <th>Taaknaam in EBS</th>
+                <th>Weergavelabel</th>
+                <th>Uursoort</th>
+                <th><span class="sr">Bewerken</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each selected.tasks as task (task.id)}
+                <tr>
+                  <td>{task.name}</td>
+                  <td class:muted={!task.label}>{task.label?.trim() ? task.label : "—"}</td>
+                  <td>
+                    <span class="type-pill" class:special={specialType(task.hourTypes?.[0]?.name)}>{task.hourTypes?.[0]?.name || "—"}</span>
+                  </td>
+                  <td class="pencil-cell">
+                    <button type="button" class="pencil" aria-label={`Bewerk ${displayTask(task, task.name)}`} onclick={() => openEditor(task)}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                        <path d="M4 20h4l10.5-10.5a1.8 1.8 0 0 0 0-2.5l-.5-.5a1.8 1.8 0 0 0-2.5 0L5 17v3Z" stroke-linejoin="round" />
+                        <path d="m13.5 6.5 3 3" stroke-linecap="round" />
+                      </svg>
+                    </button>
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+          <p class="hint">Het weergavelabel is optioneel. Zonder label verschijnt de EBS-taaknaam.</p>
+          <p class="save-line panel-foot" class:warn={dirty} class:bad={status === "Niet opgeslagen" && Boolean(error)} role="status">
+            {#if !dirty}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="m8 12.2 2.4 2.4L16.2 9" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            {/if}
+            {status}
+          </p>
+        {:else}
+          <p class="sub">Nog geen project. Voeg er een toe met de plus.</p>
+        {/if}
+      </section>
     </div>
-    <button type="button" class="btn" onclick={addProject}>Project toevoegen</button>
+  {:else if config && tab === "week"}
+    <section class="card settings-panel data-panel">
+      <h2>Werkweek</h2>
+      <p class="hint">Maximale uren per weekdag. Een boeking boven dit maximum wordt geweigerd. Het weekraster waarschuwt alleen.</p>
+      <div class="max-grid">
+        {#each DAYS as day, index (day)}
+          <label>
+            {day}
+            <input
+              value={formatHours(config.maxHoursPerDay[index]) || "0"}
+              onchange={(event) => {
+                if (!setMax(index, event.currentTarget.value)) {
+                  event.currentTarget.value = formatHours(config.maxHoursPerDay[index]) || "0";
+                }
+              }}
+            />
+          </label>
+        {/each}
+      </div>
+      <p class="save-line" class:warn={dirty} role="status">{status}</p>
+    </section>
+  {:else if config && tab === "data"}
+    <section class="card settings-panel data-panel">
+      <h2>Gegevens</h2>
+      <label class="grow">
+        Standaard uurtype
+        <input
+          value={config.defaultHourTypeName}
+          oninput={(event) => {
+            config.defaultHourTypeName = event.currentTarget.value;
+            markDirty();
+          }}
+        />
+        <span class="hint">Nieuwe taken krijgen deze naam. Bestaande uursoorten blijven staan.</span>
+      </label>
+      <div>
+        <p class="field-label">Database</p>
+        <p class="path">{dbPath || "Database opent bij start"}</p>
+      </div>
+      <div class="head-actions">
+        <button type="button" class="btn" onclick={exportConfig}>Exporteer configuratie</button>
+        <button type="button" class="btn" onclick={importConfig}>Importeer configuratie</button>
+        <button type="button" class="btn" onclick={migrate}>Migreer JSON</button>
+      </div>
+      <p class="hint">Importeren vervangt de configuratie en laat weken staan. Een oud bestand zonder weergavelabel of standaard uurtype blijft geldig.</p>
+      <p class="save-line" class:warn={dirty} role="status">{status}</p>
+    </section>
   {/if}
+
+{#if editor}
+  <div class="modal-backdrop">
+    <button type="button" class="backdrop-dismiss" aria-label="Annuleren" onclick={() => (editor = null)}></button>
+    <form
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="task-dialog-title"
+      onsubmit={(event) => {
+        event.preventDefault();
+        commitEditor();
+      }}
+    >
+      <div class="panel-title">
+        <h2 id="task-dialog-title">{editor.taskId ? "Taak bewerken" : "Taak toevoegen"}</h2>
+        <button type="button" class="icon-btn" aria-label="Sluiten" onclick={() => (editor = null)}>×</button>
+      </div>
+      <label>
+        Taaknaam in EBS
+        <input bind:this={nameInput} bind:value={editor.name} />
+        <span class="hint">Exacte naam voor de EBS-export.</span>
+      </label>
+      <label>
+        Weergavelabel (optioneel)
+        <input bind:value={editor.label} />
+      </label>
+      <label>
+        Uursoort
+        {#if editor.useCustom}
+          <input bind:value={editor.customName} placeholder="Naam van het uurtype" />
+        {:else}
+          <select bind:value={editor.hourTypeName} onchange={(event) => {
+            if (event.currentTarget.value === "__new__") editor.useCustom = true;
+          }}>
+            {#each hourChoices as name (name)}
+              <option value={name}>{name}</option>
+            {/each}
+            <option value="__new__">Nieuw uurtype…</option>
+          </select>
+        {/if}
+      </label>
+      {#if editorError}<p class="banner danger" role="alert">{editorError}</p>{/if}
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick={() => (editor = null)}>Annuleren</button>
+        <button type="submit" class="btn btn-primary">Opslaan</button>
+      </div>
+    </form>
+  </div>
+{/if}
 </section>

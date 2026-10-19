@@ -266,9 +266,6 @@
         <span>Instellingen</span>
       </button>
     </nav>
-    <p class="sidebar-meta" title={dbPath || "Database opent bij start"}>
-      {dbPath || "Database opent bij start"}
-    </p>
   </aside>
 
   <div class="workspace">
@@ -288,7 +285,7 @@
     {:else if view === "weeks"}
       <WeeksScreen {reloadToken} onopen={openWeek} onexport={(date) => { weekStart = date; view = "export"; }} onnotice={flash} />
     {:else if view === "config"}
-      <ConfigScreen {reloadToken} onnotice={flash} />
+      <ConfigScreen {reloadToken} {dbPath} onnotice={flash} />
     {:else}
       <ExportScreen {weekStart} {reloadToken} onnotice={flash} />
     {/if}

@@ -6,8 +6,9 @@ use crate::error::Result;
 use crate::hours::Hours;
 use crate::model::{
     HourType, Project, StoredWeekRow, Task, UserConfig, WeekCustomProject, WeekDocument,
-    DEFAULT_USER_ID, DEFAULT_USER_NAME,
+    WeekRowInput, DEFAULT_USER_ID, DEFAULT_USER_NAME,
 };
+use crate::normalize::{collapse_hour_types, normalize_week_rows};
 use crate::text::now_iso;
 
 const SCHEMA: &str = "
@@ -31,12 +32,14 @@ CREATE TABLE IF NOT EXISTS projects (
     user_id TEXT NOT NULL,
     name TEXT NOT NULL,
     label TEXT,
+    archived INTEGER NOT NULL DEFAULT 0,
     position INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS tasks (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
+    label TEXT,
     position INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS hour_types (
@@ -87,7 +90,24 @@ pub fn initialize(conn: &Connection) -> Result<()> {
     conn.pragma_update(None, "synchronous", "NORMAL")?;
     conn.busy_timeout(Duration::from_secs(5))?;
     conn.execute_batch(SCHEMA)?;
+    add_column_if_missing(conn, "projects", "archived", "INTEGER NOT NULL DEFAULT 0")?;
+    add_column_if_missing(conn, "tasks", "label", "TEXT")?;
     seed(conn)?;
+    Ok(())
+}
+
+fn add_column_if_missing(conn: &Connection, table: &str, column: &str, decl: &str) -> Result<()> {
+    let mut stmt = conn.prepare(&format!("PRAGMA table_info({table})"))?;
+    let names = stmt.query_map([], |row| row.get::<_, String>(1))?;
+    for name in names {
+        if name? == column {
+            return Ok(());
+        }
+    }
+    conn.execute(
+        &format!("ALTER TABLE {table} ADD COLUMN {column} {decl}"),
+        [],
+    )?;
     Ok(())
 }
 
@@ -146,51 +166,68 @@ pub fn load_config(conn: &Connection) -> Result<UserConfig> {
         Err(error) => return Err(error.into()),
     };
     let max_hours_per_day: [Hours; 5] = serde_json::from_str(&max_hours)?;
-    Ok(UserConfig {
+    let mut config = UserConfig {
         user_id: DEFAULT_USER_ID.to_string(),
         max_hours_per_day,
-        default_hour_type_name: default_name,
+        default_hour_type_name: default_name.clone(),
         projects: load_projects(conn)?,
         updated_at,
-    })
+    };
+    // Collapse in memory so a database saved before the one-hour-type rule
+    // does not show several types. `updated_at` stays the stored value.
+    for project in &mut config.projects {
+        for task in &mut project.tasks {
+            let taken = std::mem::take(&mut task.hour_types);
+            task.hour_types = collapse_hour_types(taken, &default_name);
+        }
+    }
+    Ok(config)
 }
 
 fn load_projects(conn: &Connection) -> Result<Vec<Project>> {
-    let mut stmt = conn
-        .prepare("SELECT id, name, label FROM projects WHERE user_id = ?1 ORDER BY position ASC")?;
+    let mut stmt = conn.prepare(
+        "SELECT id, name, label, archived FROM projects WHERE user_id = ?1 ORDER BY position ASC",
+    )?;
     let rows = stmt.query_map(params![DEFAULT_USER_ID], |row| {
         Ok((
             row.get::<_, String>(0)?,
             row.get::<_, String>(1)?,
             row.get::<_, Option<String>>(2)?,
+            row.get::<_, i64>(3)?,
         ))
     })?;
     let mut projects = Vec::new();
     for row in rows {
-        let (id, name, label) = row?;
+        let (id, name, label, archived) = row?;
         projects.push(Project {
             tasks: load_tasks(conn, &id)?,
             id,
             name,
             label,
+            archived: archived != 0,
         });
     }
     Ok(projects)
 }
 
 fn load_tasks(conn: &Connection, project_id: &str) -> Result<Vec<Task>> {
-    let mut stmt =
-        conn.prepare("SELECT id, name FROM tasks WHERE project_id = ?1 ORDER BY position ASC")?;
+    let mut stmt = conn
+        .prepare("SELECT id, name, label FROM tasks WHERE project_id = ?1 ORDER BY position ASC")?;
     let rows = stmt.query_map(params![project_id], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, Option<String>>(2)?,
+        ))
     })?;
     let mut tasks = Vec::new();
     for row in rows {
-        let (id, name) = row?;
+        let (id, name, label) = row?;
         tasks.push(Task {
             hour_types: load_hour_types(conn, &id)?,
             id,
             name,
+            label,
         });
     }
     Ok(tasks)
@@ -231,19 +268,26 @@ pub fn put_config(conn: &Connection, config: &UserConfig) -> Result<()> {
     )?;
     for (position, project) in config.projects.iter().enumerate() {
         conn.execute(
-            "INSERT INTO projects (id, user_id, name, label, position) VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO projects (id, user_id, name, label, archived, position) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 project.id,
                 DEFAULT_USER_ID,
                 project.name,
                 project.label,
+                i64::from(project.archived),
                 position as i64
             ],
         )?;
         for (task_position, task) in project.tasks.iter().enumerate() {
             conn.execute(
-                "INSERT INTO tasks (id, project_id, name, position) VALUES (?1, ?2, ?3, ?4)",
-                params![task.id, project.id, task.name, task_position as i64],
+                "INSERT INTO tasks (id, project_id, name, label, position) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![
+                    task.id,
+                    project.id,
+                    task.name,
+                    task.label,
+                    task_position as i64
+                ],
             )?;
             for (hour_position, hour_type) in task.hour_types.iter().enumerate() {
                 conn.execute(
@@ -275,9 +319,30 @@ pub fn load_week(conn: &Connection, week_start: &str) -> Result<Option<WeekDocum
         Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(None),
         Err(error) => return Err(error.into()),
     };
+    let custom_projects = load_custom_projects(conn, &id)?;
+    let stored_rows = load_rows(conn, &id)?;
+    let config = load_config(conn)?;
+    let custom_names = custom_projects
+        .iter()
+        .map(|project| (project.id.clone(), project.name.clone()))
+        .collect();
+    let inputs = stored_rows
+        .iter()
+        .map(|row| WeekRowInput {
+            id: row.id.clone(),
+            project_id: row.project_id.clone(),
+            project_name: row.project_name.clone(),
+            task_id: row.task_id.clone(),
+            task_name: row.task_name.clone(),
+            hour_type_id: row.hour_type_id.clone(),
+            hour_type_name: row.hour_type_name.clone(),
+            hours: row.hours,
+            note: row.note.clone(),
+        })
+        .collect::<Vec<_>>();
     Ok(Some(WeekDocument {
-        custom_projects: load_custom_projects(conn, &id)?,
-        rows: load_rows(conn, &id)?,
+        rows: normalize_week_rows(&inputs, &config, &custom_names),
+        custom_projects,
         id,
         user_id: DEFAULT_USER_ID.to_string(),
         week_start_date: week_start,

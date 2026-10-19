@@ -114,6 +114,11 @@ export function displayProject(project) {
   return label || project?.name || "Project";
 }
 
+export function displayTask(task, fallback = "") {
+  const label = task?.label?.trim();
+  return label || fallback || task?.name || "Taak";
+}
+
 export function collapse(value) {
   return String(value ?? "").replace(/\s+/g, " ").trim();
 }
@@ -174,6 +179,7 @@ export function missingCombos(config, rows) {
   const have = new Set(rows.map((row) => comboKey(row.projectId, row.taskId, row.hourTypeId)));
   const combos = [];
   for (const project of config?.projects ?? []) {
+    if (project.archived) continue;
     for (const task of project.tasks) {
       for (const hourType of task.hourTypes) {
         const key = comboKey(project.id, task.id, hourType.id);
@@ -185,6 +191,7 @@ export function missingCombos(config, rows) {
           projectLabel: displayProject(project),
           taskId: task.id,
           taskName: task.name,
+          displayName: displayTask(task, task.name),
           hourTypeId: hourType.id,
           hourTypeName: hourType.name,
         });

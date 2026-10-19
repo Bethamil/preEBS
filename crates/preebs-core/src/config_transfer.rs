@@ -107,6 +107,10 @@ fn parse_project(value: &Value) -> Option<Project> {
         id: safe_trim(object.get("id").and_then(Value::as_str).unwrap_or("")),
         name,
         label: if label.is_empty() { None } else { Some(label) },
+        archived: object
+            .get("archived")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
         tasks: parse_tasks(object.get("tasks")),
     })
 }
@@ -124,9 +128,11 @@ fn parse_task(value: &Value) -> Option<Task> {
     if name.is_empty() {
         return None;
     }
+    let label = safe_trim(object.get("label").and_then(Value::as_str).unwrap_or(""));
     Some(Task {
         id: safe_trim(object.get("id").and_then(Value::as_str).unwrap_or("")),
         name,
+        label: if label.is_empty() { None } else { Some(label) },
         hour_types: parse_hour_types(object.get("hourTypes")),
     })
 }

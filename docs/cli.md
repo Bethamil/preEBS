@@ -67,7 +67,7 @@ Successful `--json` output is pretty-printed with a trailing newline. `--dry-run
 { "config": { "userId": "local-user", "maxHoursPerDay": [8, 8, 8, 8, 8], "defaultHourTypeName": "Straight Time", "projects": [], "updatedAt": "..." } }
 ```
 
-`label` is omitted when a project has none. `projects[].tasks[].hourTypes[]` is `{ "id", "name" }`.
+`label` is omitted when a project or task has none. `archived` is omitted when false. `projects[].tasks[].hourTypes` has exactly one `{ "id", "name" }` after save. The parser still accepts a longer list; normalize collapses it.
 
 ### `config set`
 
@@ -94,7 +94,7 @@ The file itself is `preebs-config` version 1, pretty-printed with a trailing new
 }
 ```
 
-Files written by the old app omit `defaultHourTypeName`. Import treats that as the historical name. Unknown fields are ignored. `type` must be `preebs-config` and `version` must be `1`. Empty project, task, and hour-type names are dropped. Hour types are kept; they are not collapsed to one per task.
+Files written by the old app omit `defaultHourTypeName`, task `label`, and `archived`. Import treats a missing default as `Straight Time`, a missing task label as none, and a missing `archived` as false. Unknown fields are ignored. `type` must be `preebs-config` and `version` must be `1`. Empty project, task, and hour-type names are dropped. Several hour types on one task collapse to one: the first name that is not `Straight Time`, otherwise the first. Week rows for that task are rewritten onto the surviving hour type and merged (hours added and clamped, first note wins). The export shape stays `tasks[].hourTypes[]`.
 
 ### `config import <file>`
 
@@ -112,7 +112,7 @@ Replaces config. Weeks stay. Stdout is `{ "config" }`.
 { "project": { "id": "...", "name": "...", "tasks": [] } }
 ```
 
-`project add --name NAME [--label LABEL] [--id ID]`. `--label ""` clears on edit. Omitting `--label` leaves it. `project rm` does not delete week rows that already use the project.
+`project add --name NAME [--label LABEL] [--id ID]`. `--name` is the EBS project name. `--label` is the optional display name. `--label ""` clears on edit. Omitting `--label` leaves it. `--archive` and `--unarchive` hide or show the project. `project rm` does not delete week rows that already use the project.
 
 ### `task list --project PROJECT`
 
@@ -126,7 +126,7 @@ Replaces config. Weeks stay. Stdout is `{ "config" }`.
 { "task": { "id": "...", "name": "...", "hourTypes": [] } }
 ```
 
-`task add` repeats `--hour-type NAME` for more than one. With no `--hour-type`, the default hour type is attached. A task id is unique across the whole config. The last hour type on a task cannot be removed (exit 2).
+`task add --name` is the exact EBS task name. `--label` is optional and shown in the app instead; export keeps `--name`. `--label ""` clears it. With no `--hour-type`, the default hour type is attached. Repeating `--hour-type` still stores one, using the collapse rule. A task id is unique across the whole config. A task label counts as a name for `book` and `task edit`. `hour-type add` and `hour-type rm` exit 2. Rename the only hour type with `task edit --hour-type` or `hour-type edit` (the id is kept).
 
 ### `hour-type list --project PROJECT --task TASK`
 
