@@ -242,7 +242,7 @@ Default path: `./preebs-YYYY-MM-DD.json` using the Monday of that week. Refuses 
 { "output": "/absolute/preebs-2026-09-21.json", "weekStart": "2026-09-21" }
 ```
 
-The file is the extension document, not this envelope. It is pretty JSON with two-space indent and a trailing newline. It always has five days. Zero cells are omitted. Notes are omitted. Order follows config order of project, then task, then hour type. If two hour types share an id, the later one in that index wins, which matches the TypeScript exporter (Overtime can sort before Straight Time when both use ids that collide). The Chrome and Firefox extensions are unchanged.
+The file is the extension document, not this envelope. It is pretty JSON with two-space indent and a trailing newline. It always has five days. Zero cells are omitted. Notes are omitted. Order follows config order of project, then task, then hour type. If two hour types share an id, the later one in that index wins, which matches the TypeScript exporter (Overtime can sort before Straight Time when both use ids that collide). The Chrome, Firefox, and Safari extensions import this file.
 
 ### `migrate [--from FILE]`
 
