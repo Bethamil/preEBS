@@ -2,7 +2,7 @@
 
 ![PreEBS logo](crates/preebs-app/public/logo.png)
 
-Enter Monday–Friday hours in PreEBS, export JSON, then import that JSON into EBS with the Chrome or Firefox extension.
+Enter Monday–Friday hours in PreEBS, export JSON, then import that JSON into EBS with the Chrome, Firefox, or Safari extension.
 
 The desktop app and the `preebs` CLI share one SQLite database. Nothing has to be running for the CLI to work.
 
@@ -79,10 +79,13 @@ These folders are unchanged:
 
 - `chrome-extension/preebs-ebs-importer`
 - `firefox-extension/preebs-ebs-importer`
+- `safari-extension/preebs-ebs-importer`
 
 Chrome: open `chrome://extensions`, enable Developer mode, Load unpacked, and choose the Chrome folder.
 
 Firefox: open `about:debugging#/runtime/this-firefox`, Load Temporary Add-on, and choose `firefox-extension/preebs-ebs-importer/manifest.json`.
+
+Safari: open `safari-extension/macos/PreEBS EBS Importer/PreEBS EBS Importer.xcodeproj`, run the app, and enable the extension in Safari Settings. macOS 13 or later. Details are in `safari-extension/preebs-ebs-importer/README.md`.
 
 On the EBS timecard page, open the extension, paste the exported JSON, and run the import. Then review and save in EBS.
 

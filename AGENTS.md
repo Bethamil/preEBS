@@ -4,14 +4,14 @@ This file defines how coding agents should work in this repository.
 
 ## Product
 
-PreEBS is a keyboard-first weekly timesheet. People enter Monday–Friday hours here, export JSON, and import that JSON into EBS with the Chrome or Firefox extension.
+PreEBS is a keyboard-first weekly timesheet. People enter Monday–Friday hours here, export JSON, and import that JSON into EBS with the Chrome, Firefox, or Safari extension.
 
 ## Stack
 
 - `crates/preebs-core`: domain, validation, week export, config transfer, SQLite
 - `crates/preebs-cli`: the `preebs` binary. No HTTP server
 - `crates/preebs-app`: Tauri v2 shell and a Svelte 5 + Vite UI
-- `chrome-extension/` and `firefox-extension/`: unchanged consumers of the week export
+- `chrome-extension/`, `firefox-extension/`, and `safari-extension/`: consumers of the week export. Safari also has the macOS wrapper Xcode project under `safari-extension/macos`
 - `docs/rust-plan.md`: domain rules and intentional differences from the previous TypeScript app (that tree is only in git history)
 - `docs/cli.md`: stable `--json` schemas
 

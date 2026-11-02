@@ -27,6 +27,7 @@ The release workflow refuses the tag when those three disagree. CI on branches d
 | `PreEBS_<version>_amd64.AppImage` | Linux AppImage. |
 | `preebs-macos-aarch64`, `preebs-macos-x64`, `preebs-linux-x86_64` | Standalone CLI binaries. |
 | `preebs-chrome.zip`, `preebs-firefox.zip` | The extension folders, unchanged. |
+| `preebs-safari.zip` | The Safari web extension and the macOS Xcode wrapper. Open the project and run it. |
 
 Release notes are generated from merged pull requests (`gh release create --generate-notes`). macOS builds are unsigned (`signingIdentity` is `-`). There is no in-app “install CLI” button: Homebrew links the binary that is already inside the app.
 

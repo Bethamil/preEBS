@@ -141,6 +141,8 @@ jobs:
         run: |
           zip -r release/preebs-chrome.zip chrome-extension/preebs-ebs-importer
           zip -r release/preebs-firefox.zip firefox-extension/preebs-ebs-importer
+          zip -r release/preebs-safari.zip safari-extension \
+            -x '*.xcuserstate' -x '*/xcuserdata/*' -x '*/.DS_Store' -x '*/DerivedData/*'
           find release -type f -exec chmod a+r {} \;
           ls -l release
       - name: Publish GitHub Release

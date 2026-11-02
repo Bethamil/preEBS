@@ -1,6 +1,6 @@
 # PreEBS Rust rebuild
 
-This document is the spec for the Rust port. It was written from the previous TypeScript app before any Rust code. That Next.js and Electron tree is no longer in the repository; it remains in git history. `chrome-extension/` and `firefox-extension/` stay where they are. They keep consuming the week export JSON unchanged.
+This document is the spec for the Rust port. It was written from the previous TypeScript app before any Rust code. That Next.js and Electron tree is no longer in the repository; it remains in git history. `chrome-extension/` and `firefox-extension/` stay where they are. They keep consuming the week export JSON unchanged. `safari-extension/` is the same importer plus the macOS app Safari requires.
 
 ## Why the UI is Svelte
 
@@ -26,6 +26,7 @@ docs/rust-plan.md                   this file
 docs/cli.md                         stable JSON schemas
 chrome-extension/                   unchanged
 firefox-extension/                  unchanged
+safari-extension/                   same importer, plus the Safari wrapper app
 ```
 
 `crates/preebs-app/src-tauri` is the Cargo package `preebs-app`. Nesting it is the Tauri v2 layout (`package.json` beside `src-tauri/`) so `tauri build` works without a custom project path. Both binaries link `preebs-core` and open the same database file. The toolchain is Rust 1.90, which is what Tauri 2.12 requires.

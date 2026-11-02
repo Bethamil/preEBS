@@ -86,7 +86,7 @@ Exit codes: `0` ok, `1` unexpected, `2` validation or usage, `3` not found, `4` 
 ## Export
 
 - `export` accepts any date in the week and writes Monday through Friday.
-- The file is the JSON the Chrome and Firefox extensions already import. Notes are not in it.
+- The file is the JSON the Chrome, Firefox, and Safari extensions already import. Notes are not in it.
 - The default path is `./preebs-WEEK-MONDAY.json`.
 - Export never overwrites. If the file exists, pick another `--output` or ask before replacing it.
 - Report the `output` path from the JSON so the user can select it in the extension.
